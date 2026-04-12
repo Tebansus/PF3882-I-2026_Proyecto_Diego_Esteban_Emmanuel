@@ -5,12 +5,12 @@
 As modern software architecture increasingly relies on distributed microservices, managing the complex network interactions between these individual components becomes a critical challenge. This project explores the deployment, management, and securing of a microservices-based architecture using a local Kubernetes cluster and the Istio service mesh. Using the standard Bookinfo sample application as our starting point.
 
 ### Project Objectives and Rationale
-The primary goal of this project is to demonstrate how a service mesh can solve the inherent challenges of running distributed systems. By systematically implementing Istio’s core features, the project focuses on four distinct areas of operational excellence:
+The primary goal of this project is to demonstrate how a service mesh can solve the inherent challenges of running distributed systems. By systematically implementing Istio’s core features, the project focuses on four distinct areas of mesh benefits:
 
-* Observability: Understanding how traffic flows through a distributed system is notoriously difficult. To solve this, we will integrate tools like Kiali, Grafana, and Jaeger to visualize service topology, monitor metrics, and trace requests\.
-* Advanced Traffic Engineering: Traditional load balancing is often insufficient for modern deployment strategies. We will utilize Istio's routing capabilities to perform canary deployments and user-specific  routing, demonstrating how to safely test and release new service versions in a live environment.
-* System Resiliency: Microservices must be designed to expect and handle failure. By injecting artificial ;atency and configuring timeouts, retries, and circuit breakers, we will ensure the application handles degrades.
-* Security: Securing internal cluster traffic is just as vital as securing the external perimeter. We will enforce strict mutual TLS (mTLS) encryption and granular authorization policies, ensuring that only explicitly permitted services can communicate with one another.
+* Observability: Understanding how traffic flows through a distributed system is difficult. To solve this, tools like Kiali, Grafana, and Jaeger will be implemented to visualize service topology, monitor metrics, and trace requests.
+* Advanced Traffic Engineering: Traditional load balancing is often not enough for modern deployment strategies. Istio's routing capabilities will be utilized to perform canary deployments and routing, demonstrating how to safely test and release new service versions in a live environment.
+* System Resiliency: Microservices must be designed to expect and handle failure. By injecting artificial ;atency and configuring timeouts, retries, and circuit breakers, it will ensured that the application handles degrades.
+* Security: Securing internal cluster traffic is just as vital as securing the external perimeter. Strict mutual TLS (mTLS) encryption and granular authorization policies will be used, ensuring that only explicitly permitted services can communicate with one another.
 ## Week 1–2: Local Infrastructure & Baseline Deployment
 A shared Git repository will be created containing bash scripts and a `kind-config.yaml` file to automate the setup of a local Kubernetes cluster using Docker. Once the cluster is running, the official manifests of the Istio Bookinfo sample application will be deployed.
 
