@@ -4,6 +4,9 @@
 ### Overview
 As modern software architecture increasingly relies on distributed microservices, managing the complex network interactions between these individual components becomes a critical challenge. This project explores the deployment, management, and securing of a microservices-based architecture using a local Kubernetes cluster and the Istio service mesh. Using the standard Bookinfo sample application as our starting point.
 
+### Service mesh
+A service mesh is a dedicated infrastructure layer for handling service-to-service communication, implemented in practice as an array of lightweight network proxies deployed alongside microservices, without the applications needing to be aware. A service mesh, for example, could be used to decouple security from the application, securing communication between the microservices with TLS. This way it becomes unnecessary to implement TLS encryption and decryption in each language used in the project [1].
+
 ### Project Objectives and Rationale
 The primary goal of this project is to demonstrate how a service mesh can solve the inherent challenges of running distributed systems. By systematically implementing Istio’s core features, the project focuses on four distinct areas of mesh benefits:
 
@@ -76,3 +79,6 @@ Finally, the project will be documented with:
 - Screenshots from Kiali (service graph)
 - Grafana dashboards
 - Examples of routing, fault injection, and security policies
+
+## References
+[1] A. Khatri, V. Khatri, D. Nirmal, H. Pirahesh, and E. Herness, Mastering Service Mesh. Packt Publishing, 2020.
