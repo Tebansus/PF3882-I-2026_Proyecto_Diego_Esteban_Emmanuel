@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CLUSTER_NAME="${CLUSTER_NAME:-bookinfo}"
+NAMESPACE="${NAMESPACE:-bookinfo}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+KUBE_DIR="${SCRIPT_DIR}/../platform/kube"
+CONTEXT="kind-${CLUSTER_NAME}"
+
+if ! kubectl config get-contexts -o name | grep -qx "${CONTEXT}"; then
+  echo "ERROR: context '${CONTEXT}' not found. Run 01-create-cluster.sh first." >&2
+  exit 1
+fi
+kubectl config use-context "${CONTEXT}" >/dev/null
+
+kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1 || \
+  kubectl create namespace "${NAMESPACE}"
+
+echo "Applying Bookinfo manifests to namespace '${NAMESPACE}'..."
+kubectl -n "${NAMESPACE}" apply -f "${KUBE_DIR}/bookinfo.yaml"
+
+# NodePort for productpage pinned to 30080 to match kind extraPortMapping.
+# This overrides the ClusterIP 'productpage' service from bookinfo.yaml.
+echo "Exposing productpage via NodePort 30080..."
+kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/productpage-nodeport-30080.yaml"
+
+echo "Waiting for all deployments to become Available (timeout: 5m)..."
+kubectl -n "${NAMESPACE}" wait --for=condition=Available --timeout=300s deployment --all
+
+echo
+kubectl -n "${NAMESPACE}" get pods -o wide
+echo
+kubectl -n "${NAMESPACE}" get svc

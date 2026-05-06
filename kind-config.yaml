@@ -1,0 +1,17 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: bookinfo
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      # Productpage NodePort -> host (used by 02-deploy or productpage-nodeport.yaml)
+      - containerPort: 30080
+        hostPort: 30080
+        protocol: TCP
+      # Reserved for an ingress controller, if added later
+      - containerPort: 80
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 8443
+        protocol: TCP
