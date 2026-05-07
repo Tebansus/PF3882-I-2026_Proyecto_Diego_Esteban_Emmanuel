@@ -16,6 +16,9 @@ kubectl config use-context "${CONTEXT}" >/dev/null
 kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1 || \
   kubectl create namespace "${NAMESPACE}"
 
+echo "Enabling Istio sidecar injection for namespace '${NAMESPACE}'..."
+kubectl label namespace "${NAMESPACE}" istio-injection=enabled --overwrite
+
 echo "Applying Bookinfo manifests to namespace '${NAMESPACE}'..."
 kubectl -n "${NAMESPACE}" apply -f "${KUBE_DIR}/bookinfo.yaml"
 

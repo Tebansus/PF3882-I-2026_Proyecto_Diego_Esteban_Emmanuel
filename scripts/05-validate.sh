@@ -6,6 +6,18 @@ set -euo pipefail
 
 URL="${URL:-http://localhost:30080/productpage}"
 
+echo "Validating Istio installation..."
+if ! kubectl get namespace istio-system >/dev/null 2>&1; then
+  echo "FAIL: Istio not installed. Run scripts/02-install-istio.sh" >&2
+  exit 1
+fi
+
+if ! kubectl wait --for=condition=Available --timeout=60s deployment/istiod -n istio-system >/dev/null 2>&1; then
+  echo "FAIL: Istio control plane not ready" >&2
+  exit 1
+fi
+echo "Istio control plane is ready."
+
 echo "GET ${URL}"
 HTTP_CODE=$(curl -s -o /tmp/bookinfo-productpage.html -w "%{http_code}" "${URL}" || true)
 
