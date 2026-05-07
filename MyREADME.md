@@ -20,21 +20,21 @@ Istio service mesh installed and configured. This includes installing the Istio 
 
 ## Prerequisites
 
-| Tool    | Version used |
+| Tool | Version used |
 | ------- | ------------ |
-| Docker  | 29.x (Docker Desktop on Windows; daemon must be running) |
-| kind    | 0.31.0 |
+| Docker | 29.x (Docker Desktop on Windows; daemon must be running) |
+| kind | 0.31.0 |
 | kubectl | 1.34.x |
 | istioctl | 1.22.x (Istio CLI installed locally) |
-| bash    | Git Bash, WSL, or any POSIX-ish shell |
-| curl    | for the validation script |
+| bash | Git Bash, WSL, or any POSIX-ish shell |
+| curl | for the validation script |
 
 All must be on `PATH`. Run `docker info` once to make sure the daemon is
 reachable.
 
 ## Files added in this phase
 
-```
+```text
 bookinfo/
 ├── demo-profile-no-gateways.yaml        # Istio operator config for demo profile without gateways
 ├── kind-config.yaml                     # kind cluster definition + port mappings
@@ -60,9 +60,9 @@ Single control-plane node with three host port mappings:
 
 | Container port | Host port | Used for |
 | --- | --- | --- |
-| 30080 | 30080 | `productpage` NodePort (this phase)             |
-| 80    | 8080  | reserved for an ingress controller (future)     |
-| 443   | 8443  | reserved for an ingress controller (future)     |
+| 30080 | 30080 | `productpage` NodePort (this phase) |
+| 80 | 8080 | reserved for an ingress controller (future) |
+| 443 | 8443 | reserved for an ingress controller (future) |
 
 ## Quick start (TL;DR)
 
@@ -178,12 +178,12 @@ script is a no-op if the cluster doesn't exist.
 
 All scripts honor a few env vars if you want to deviate from the defaults:
 
-| Variable      | Default    | Used by |
+| Variable | Default | Used by |
 | ------------- | ---------- | ------- |
 | `CLUSTER_NAME` | `bookinfo` | 01, 02, 03, 99 |
-| `NAMESPACE`    | `bookinfo` | 02, 03 |
-| `LOCAL_PORT`   | `9080`     | 03 |
-| `URL`          | `http://localhost:30080/productpage` | 04 |
+| `NAMESPACE` | `bookinfo` | 02, 03 |
+| `LOCAL_PORT` | `9080` | 03 |
+| `URL` | `http://localhost:30080/productpage` | 04 |
 
 Example: `CLUSTER_NAME=demo bash scripts/01-create-cluster.sh`.
 
