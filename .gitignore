@@ -1,0 +1,36 @@
+# --- Istio / tooling binaries (downloaded, not source) ---
+istioctl.exe
+istioctl
+istio-*/
+*.exe
+
+# --- Python (load-generator.py tooling) ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.env
+
+# --- Kubernetes / local cluster artifacts ---
+kubeconfig
+*.kubeconfig
+kube-config*
+*.tmp.yaml
+
+# --- Logs & runtime output ---
+*.log
+logs/
+
+# --- OS cruft ---
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# --- Editor / IDE ---
+.vscode/
+.idea/
+*.swp
+*~
