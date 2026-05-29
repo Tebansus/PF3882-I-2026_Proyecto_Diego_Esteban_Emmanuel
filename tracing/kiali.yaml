@@ -50,6 +50,7 @@ data:
     deployment:
       accessible_namespaces:
       - bookinfo
+      - istio-system
       additional_service_yaml: {}
       affinity:
         node: {}
