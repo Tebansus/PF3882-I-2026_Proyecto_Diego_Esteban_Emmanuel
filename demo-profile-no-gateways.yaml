@@ -3,10 +3,42 @@ apiVersion: install.istio.io/v1alpha1
 kind: IstioOperator
 spec:
   profile: demo
+  meshConfig:
+    enableTracing: true
+    defaultProviders:
+      metrics:
+      - prometheus
+      tracing:
+      - zipkin
+    extensionProviders:
+    - name: zipkin
+      zipkin:
+        service: zipkin.jaeger.svc.cluster.local
+        port: 9411
+    defaultConfig:
+      tracing:
+        zipkin:
+          address: zipkin.jaeger:9411
   components:
     ingressGateways:
     - name: istio-ingressgateway
-      enabled: false
+      enabled: true
+      k8s:
+        service:
+          type: NodePort
+          ports:
+          - name: status-port
+            port: 15021
+            targetPort: 15021
+            nodePort: 32021
+          - name: http2
+            port: 80
+            targetPort: 8080
+            nodePort: 30080
+          - name: https
+            port: 443
+            targetPort: 8443
+            nodePort: 30443
     egressGateways:
     - name: istio-egressgateway
       enabled: false

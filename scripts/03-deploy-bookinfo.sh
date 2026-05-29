@@ -22,10 +22,8 @@ kubectl label namespace "${NAMESPACE}" istio-injection=enabled --overwrite
 echo "Applying Bookinfo manifests to namespace '${NAMESPACE}'..."
 kubectl -n "${NAMESPACE}" apply -f "${KUBE_DIR}/bookinfo.yaml"
 
-# NodePort for productpage pinned to 30080 to match kind extraPortMapping.
-# This overrides the ClusterIP 'productpage' service from bookinfo.yaml.
-echo "Exposing productpage via NodePort 30080..."
-kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/productpage-nodeport-30080.yaml"
+echo "Applying Istio Gateway + VirtualService for Bookinfo..."
+kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/bookinfo-gateway.yaml"
 
 echo "Waiting for all deployments to become Available (timeout: 5m)..."
 kubectl -n "${NAMESPACE}" wait --for=condition=Available --timeout=300s deployment --all
