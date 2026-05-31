@@ -7,6 +7,9 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 echo "Installing Prometheus..."
 kubectl apply -f "${PROJECT_ROOT}/metrics/prometheus.yaml"
 
+echo "Installing Bookinfo dashboard..."
+kubectl apply -f "${PROJECT_ROOT}/metrics/bookinfo-dashboard.yaml"
+
 echo "Installing Grafana..."
 kubectl apply -f "${PROJECT_ROOT}/metrics/grafana.yaml"
 

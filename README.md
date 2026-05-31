@@ -1,234 +1,306 @@
-# Bookinfo Sample
+# Bookinfo on local Kubernetes (kind) with Istio service mesh
 
-See <https://istio.io/docs/examples/bookinfo/>.
+Phase 2 of the project: get the Istio Bookinfo sample app running on a local
+Kubernetes cluster created with [kind](https://kind.sigs.k8s.io/), with the
+Istio service mesh installed and configured. This includes installing the Istio control plane
+(istiod) and enabling sidecar injection for the Bookinfo namespace.
 
-**Note**: We need the owner of the PR to perform the appropriate testing with built/pushed images to their own docker repository before we would build/push images to the official Istio repository.
+## What this gives you
 
-## General Setup
+- A single-node kind cluster named `bookinfo`.
+- Istio control plane (istiod) installed with demo profile and ingress gateway enabled.
+- The 6 Bookinfo workloads deployed in a `bookinfo` namespace with Istio sidecar
+  injection enabled: `productpage-v1`, `details-v1`, `ratings-v1`, `reviews-v1`,
+  `reviews-v2`, `reviews-v3`.
+- The `productpage` frontend exposed through the Istio ingress gateway at
+  <http://localhost:30080/productpage>.
+- An Istio `Gateway` and `VirtualService` that route external traffic to `productpage`.
+- An automated smoke test that verifies the page actually renders data coming
+  from the `details` and `reviews` services, and that Istio is properly installed.
+- Prometheus + Grafana for metrics, with a Bookinfo dashboard.
+- Jaeger + Kiali for tracing and topology (100% sampling in `bookinfo`).
+- A traffic generator that starts automatically when the project runs.
 
-```bash
-# This defines the docker hub to use when running integration tests and building docker images
-# eg: HUB="registry.istio.io/release", HUB="registry.istio.io/testing"
-export HUB="docker.io/$USER"
+## Prerequisites
 
-# This defines the docker tag to use when running integration tests and
-# building docker images to be your user id. You may also set this variable
-# this to any other legitimate docker tag.
-export TAG=<version number>
+| Tool | Version used |
+| ------- | ------------ |
+| Docker | 29.x (Docker Desktop on Windows; daemon must be running) |
+| kind | 0.31.0 |
+| kubectl | 1.34.x |
+| istioctl | 1.22.x (Istio CLI installed locally) |
+| bash | Git Bash, WSL, or any POSIX-ish shell |
+| curl | for the validation script |
+
+All must be on `PATH`. Run `docker info` once to make sure the daemon is
+reachable.
+
+## Files added in this phase
+
+```text
+bookinfo/
+├── demo-profile-no-gateways.yaml        # Istio operator config (ingress gateway enabled)
+├── kind-config.yaml                     # kind cluster definition + port mappings
+├── docs/
+│   └── BookinfoKindIstioSetup.md        # (this file)
+└── scripts/
+  ├── 01-create-cluster.sh             # creates the kind cluster
+  ├── 02-install-istio.sh              # installs Istio control plane using local istioctl
+  ├── 03-deploy-bookinfo.sh            # applies manifests + enables sidecar injection + applies gateway
+  ├── 04-port-forward.sh               # alternative exposure via kubectl port-forward
+  ├── 05-validate.sh                   # smoke test against productpage + Istio validation
+  ├── 06-install-metrics.sh            # installs Prometheus + Grafana + Bookinfo dashboard
+  ├── 07-install-tracing.sh            # installs Jaeger + Kiali + Telemetry
+  ├── 08-start-load-generator.sh       # starts the traffic generator in background
+  ├── 09-stop-load-generator.sh        # stops the traffic generator
+  ├── 99-cleanup.sh                    # deletes the kind cluster
+  ├── run-all.sh                       # 01 -> 02 -> 03 -> 05 -> 06 -> 07 -> 08
+  └── productpage-nodeport-30080.yaml  # Optional NodePort override (fallback)
 ```
 
-## Compile code
+The upstream Istio sample manifests under `platform/kube/` are **not modified**.
+The optional NodePort override lives in `scripts/` for fallback use, but the
+default path is through the Istio ingress gateway.
+
+## How `kind-config.yaml` is set up
+
+Single control-plane node with three host port mappings:
+
+| Container port | Host port | Used for |
+| --- | --- | --- |
+| 30080 | 30080 | Istio ingress gateway NodePort (HTTP) |
+| 80 | 8080 | reserved for an ingress controller (future) |
+| 443 | 8443 | reserved for an ingress controller (future) |
+
+## Quick start (TL;DR)
+
+From the project root (`bookinfo/`):
 
 ```bash
-cd samples/bookinfo
-BOOKINFO_TAG=$TAG BOOKINFO_HUB=$HUB src/build-services.sh
+bash scripts/run-all.sh
 ```
 
-For example:
+This runs the full project, including ingress routing, metrics, tracing, and the traffic generator.
+
+Open the app:
+
+- <http://localhost:30080/productpage>
+
+Expose the UIs (run each in its own terminal; keep them running):
 
 ```bash
-$ BOOKINFO_TAG=test1.0 BOOKINFO_HUB=docker.io/user1  src/build-services.sh
-+++ dirname ./build-services.sh
-++ cd .
-++ pwd
-+ SCRIPTDIR=/work/samples/bookinfo/src
-+ cd /work/samples/bookinfo/src/../../..
-+ h=docker.io/user1
-+ t=test1.0
-+ [[ docker.io/user1 == \i\s\t\i\o ]]
-+ [[ docker.io/user1 == \d\o\c\k\e\r\.\i\o\/\i\s\t\i\o ]]
-+ plat=linux/amd64
-+ [[ '' == \t\r\u\e ]]
-+ env TAG=test1.0 HUB=docker.io/user1 docker buildx bake -f samples/bookinfo/src/docker-bake.hcl --set '*.platform=linux/amd64'
-[+] Building 1.9s (123/133)
- => [examples-bookinfo-ratings-v-faulty internal] load build definition from Dockerfile                                                                                                               0.0s
- => => transferring dockerfile: 1.05kB                                                                                                                                                                0.0s
-...
- => CACHED [examples-bookinfo-ratings-v-faulty 4/6] COPY ratings.js /opt/microservices/                                                                                                               0.0s
- => CACHED [examples-bookinfo-ratings-v-faulty 5/6] WORKDIR /opt/microservices                                                                                                                        0.0s
- => CACHED [examples-bookinfo-ratings-v-faulty 6/6] RUN npm install                                                                                                                                   0.0s
-WARNING: No output specified for examples-bookinfo-mysqldb, examples-bookinfo-ratings-v-faulty, examples-bookinfo-reviews-v2, examples-bookinfo-reviews-v3, examples-bookinfo-productpage-v-flooding, examples-bookinfo-ratings-v-unhealthy, examples-bookinfo-ratings-v-unavailable, examples-bookinfo-ratings-v1, examples-bookinfo-details-v2, examples-bookinfo-reviews-v1, examples-bookinfo-productpage-v1, examples-bookinfo-ratings-v-delayed, examples-bookinfo-details-v1, examples-bookinfo-ratings-v2, examples-bookinfo-mongodb target(s) with docker-container driver. Build result will only remain in the build cache. To push result image into registry use --push or to load image into docker use --load
+kubectl -n istio-system port-forward svc/grafana 3000:3000
+kubectl -n kiali port-forward svc/kiali 20001:20001
+kubectl -n jaeger port-forward svc/tracing 16686:80
 ```
 
-The code for the bookinfo sample is now compiled and built.  The bookinfo versions are different from Istio versions since the sample should work with any version of Istio.
+Open the tools:
 
-## Build docker images
+- Grafana: <http://localhost:3000>
+- Kiali: <http://localhost:20001/kiali>
+- Jaeger: <http://localhost:16686/jaeger>
+
+To stop the traffic generator:
 
 ```bash
-cd samples/bookinfo
-BOOKINFO_TAG=$TAG BOOKINFO_HUB=$HUB src/build-services.sh --load
+bash scripts/09-stop-load-generator.sh
 ```
 
-For example:
+To tear everything down:
 
 ```bash
-$ BOOKINFO_TAG=test1.0 BOOKINFO_HUB=docker.io/user1  src/build-services.sh --load
-+++ dirname ./build-services.sh
-++ cd .
-++ pwd
-+ SCRIPTDIR=/work/samples/bookinfo/src
-+ cd /work/samples/bookinfo/src/../../..
-+ h=docker.io/user1
-+ t=test1.0
-+ [[ docker.io/user1 == \i\s\t\i\o ]]
-+ [[ docker.io/user1 == \d\o\c\k\e\r\.\i\o\/\i\s\t\i\o ]]
-+ plat=linux/amd64
-+ [[ '' == \t\r\u\e ]]
-...
- => [examples-bookinfo-productpage-v-flooding] exporting to docker image format                                                                                                                      10.4s
- => => exporting layers                                                                                                                                                                               0.0s
- => => exporting manifest sha256:5046deeca78c67f0977fa627b3c2a98ba380b09f4dabf5620040fbf723785f6a                                                                                                     0.0s
- => => exporting config sha256:5a632c874e649f6492d5a6592a3da2b9ee3fca8d6f55bfbc0249b865eb8579be                                                                                                       0.0s
- => => sending tarball                                                                                                                                                                               10.4s
- => importing to docker                                                                                                                                                                               0.1s
- => importing to docker                                                                                                                                                                               0.0s
- => importing to docker                                                                                                                                                                               0.0s
- => importing to docker                                                                                                                                                                               0.0s
- => importing to docker                                                                                                                                                                               0.0s
- => importing to docker                                                                                                                                                                               0.0s
- => importing to docker                                                                                                                                                                               0.0s
- => importing to docker                                                                                                                                                                               0.0s
- => importing to docker                                                                                                                                                                               0.0s
- => importing to docker                                                                                                                                                                               0.0s
- => importing to docker                                                                                                                                                                               0.0s
- => importing to docker                                                                                                                                                                               0.1s
- => importing to docker                                                                                                                                                                               0.3s
- => importing to docker                                                                                                                                                                               0.2s
- => importing to docker                                                                                                                                                                               0.1s
-+ [[ true == \t\r\u\e ]]
-+ find ./samples/bookinfo/platform -name '*bookinfo*.yaml' -exec sed -i.bak 's#image:.*\(\/examples-bookinfo-.*\):.*#image: docker.io\/user1\1:test1.0#g' '{}' +/ay
+bash scripts/99-cleanup.sh
 ```
 
-Docker images are now created.
+## Step-by-step
 
-## Push docker images to docker hub
+If you prefer to run each phase manually:
 
-After the local build is successful, you will need to push the images to Docker hub.  You may need to login to Docker before you run the command using `docker login`.
+### 1. Create the cluster
 
 ```bash
-cd samples/bookinfo
-BOOKINFO_LATEST=true BOOKINFO_TAG=$TAG BOOKINFO_HUB=$HUB src/build-services.sh --push
+bash scripts/01-create-cluster.sh
 ```
 
-For example:
+What it does:
+
+- Verifies `docker`, `kind`, `kubectl` are on PATH and the Docker daemon is up.
+- Skips creation if a kind cluster named `bookinfo` already exists.
+- Otherwise runs `kind create cluster --name bookinfo --config kind-config.yaml`.
+- Switches kubectl to context `kind-bookinfo` and prints node info.
+
+Expected: a `bookinfo-control-plane` node appears (it shows `NotReady` for a
+few seconds while CNI initializes — that's normal).
+
+### 2. Install Istio
 
 ```bash
-$ BOOKINFO_TAG=test1.0 BOOKINFO_HUB=docker.io/user1  src/build-services.sh --push
-+++ dirname ./build-services.sh
-++ cd .
-++ pwd
-+ SCRIPTDIR=/work/samples/bookinfo/src
-+ cd /work/samples/bookinfo/src/../../..
-+ h=docker.io/user1
-+ t=test1.0
-+ [[ docker.io/user1 == \i\s\t\i\o ]]
-+ [[ docker.io/user1 == \d\o\c\k\e\r\.\i\o\/\i\s\t\i\o ]]
-+ plat=linux/amd64
-+ [[ '' == \t\r\u\e ]]
-+ env TAG=test1.0 HUB=docker.io/user1 docker buildx bake -f samples/bookinfo/src/docker-bake.hcl --set '*.platform=linux/amd64' --push
-...
- => => pushing layers                                                                                                                                                                                11.1s
- => => pushing manifest for docker.io/user1/examples-bookinfo-reviews-v3:test1.0@sha256:4c9e2dfcabdfc55fba9037967ee412690b23d676481713eb88985926e229c8db                                          0.7s
- => [auth] user1/examples-bookinfo-ratings-v2:pull,push token for registry-1.docker.io                                                                                                            0.0s
- => [auth] user1/examples-bookinfo-ratings-v-delayed:pull,push token for registry-1.docker.io                                                                                                     0.0s
- => [auth] user1/examples-bookinfo-ratings-v-unavailable:pull,push token for registry-1.docker.io                                                                                                 0.0s
- => [auth] user1/examples-bookinfo-ratings-v-unhealthy:pull,push token for registry-1.docker.io                                                                                                   0.0s
- => [auth] user1/examples-bookinfo-ratings-v-faulty:pull,push token for registry-1.docker.io                                                                                                      0.0s
- => [auth] user1/examples-bookinfo-mongodb:pull,push token for registry-1.docker.io                                                                                                               0.0s
- => [auth] user1/examples-bookinfo-details-v1:pull,push token for registry-1.docker.io                                                                                                            0.0s
- => [auth] user1/examples-bookinfo-productpage-v1:pull,push token for registry-1.docker.io                                                                                                        0.0s
- => [auth] user1/examples-bookinfo-details-v2:pull,push token for registry-1.docker.io                                                                                                            0.0s
- => [auth] user1/examples-bookinfo-productpage-v-flooding:pull,push token for registry-1.docker.io                                                                                                0.0s
- => [auth] user1/examples-bookinfo-reviews-v1:pull,push token for registry-1.docker.io                                                                                                            0.0s
- => [auth] user1/examples-bookinfo-reviews-v3:pull,push token for registry-1.docker.io                                                                                                            0.0s
- => [auth] user1/examples-bookinfo-reviews-v2:pull,push token for registry-1.docker.io                                                                                                            0.0s
-+ [[ true == \t\r\u\e ]]
-+ find ./samples/bookinfo/platform -name '*bookinfo*.yaml' -exec sed -i.bak 's#image:.*\(\/examples-bookinfo-.*\):.*#image: docker.io\/user1\1:test1.0#g' '{}' +
+bash scripts/02-install-istio.sh
 ```
 
-## Update YAML files to point to the newly created images
+What it does:
 
-You need to update the YAML file with the latest tag that you used during the build, eg: `$HUB:$TAG`.
+- Verifies `kubectl`, `istioctl` are on PATH.
+- Installs Istio control plane using the demo profile with ingress gateway enabled.
+- Waits for `istiod` deployment to be ready.
 
-Run the following script to update the YAML files in one step.
+Expected: Istio components running in `istio-system` namespace.
+
+### 3. Deploy Bookinfo
 
 ```bash
-cd samples/bookinfo
-export BOOKINFO_UPDATE=true
-BOOKINFO_TAG=test1.0 BOOKINFO_HUB=user1 src/build-services.sh
+bash scripts/03-deploy-bookinfo.sh
 ```
 
-For example:
+What it does:
+
+- Creates the `bookinfo` namespace if it doesn't exist.
+- Labels the namespace for Istio sidecar injection.
+- Applies all Bookinfo manifests from `platform/kube/bookinfo.yaml`.
+- Applies the Istio `Gateway` and `VirtualService` for Bookinfo.
+- Waits for all deployments to be Available.
+
+Expected: 6 pods running in `bookinfo` namespace, each with an Istio sidecar (2/2 Ready).
+
+### 4. Validate
 
 ```bash
-$ export BOOKINFO_UPDATE=true
-$ BOOKINFO_TAG=test1.0 BOOKINFO_HUB=user1 src/build-services.sh
-+++ dirname samples/bookinfo/src/build-services.sh
-++ cd samples/bookinfo/src
-++ pwd
-+ SCRIPTDIR=/work/samples/bookinfo/src
-+ cd /work/samples/bookinfo/src/../../..
-+ h=user1
-+ t=test1.0
-+ [[ user1 == \i\s\t\i\o ]]
-+ [[ user1 == \d\o\c\k\e\r\.\i\o\/\i\s\t\i\o ]]
-+ plat=linux/amd64
-+ [[ '' == \t\r\u\e ]]
-+ env TAG=test1.0 HUB=docker.io/user1 docker buildx bake -f samples/bookinfo/src/docker-bake.hcl --set '*.platform=linux/amd64'
-...
- => CACHED [examples-bookinfo-ratings-v-faulty 4/6] COPY ratings.js /opt/microservices/                                                                                                               0.0s
- => CACHED [examples-bookinfo-ratings-v-faulty 5/6] WORKDIR /opt/microservices                                                                                                                        0.0s
- => CACHED [examples-bookinfo-ratings-v-faulty 6/6] RUN npm install                                                                                                                                   0.0s
-WARNING: No output specified for examples-bookinfo-mysqldb, examples-bookinfo-ratings-v-faulty, examples-bookinfo-reviews-v2, examples-bookinfo-reviews-v3, examples-bookinfo-productpage-v-flooding, examples-bookinfo-ratings-v-unhealthy, examples-bookinfo-ratings-v-unavailable, examples-bookinfo-ratings-v1, examples-bookinfo-details-v2, examples-bookinfo-reviews-v1, examples-bookinfo-productpage-v1, examples-bookinfo-ratings-v-delayed, examples-bookinfo-details-v1, examples-bookinfo-ratings-v2, examples-bookinfo-mongodb target(s) with docker-container driver. Build result will only remain in the build cache. To push result image into registry use --push or to load image into docker use --load
-+ [[ true == \t\r\u\e ]]
-+ find ./samples/bookinfo/platform -name '*bookinfo*.yaml' -exec sed -i.bak 's#image:.*\(\/examples-bookinfo-.*\):.*#image: user1\1:test1.0#g' '{}' +
+bash scripts/05-validate.sh
 ```
 
-Verify that expected image eg: `user1/examples-bookinfo-*:test1.0` is updated in `platform/kube/bookinfo*.yaml` files.
+What it does:
 
-## Tests
+- Checks that Istio control plane is installed and ready.
+- `curl`s <http://localhost:30080/productpage> and asserts HTTP 200.
+- Greps the response for the productpage HTML title, the "Book Details" section
+  (proves the `details` service was reached), and the "Book Reviews" section
+  (proves a `reviews` pod was reached). Reviews itself calls `ratings`, so any
+  non-v1 reviews variant exercises that hop too.
 
-Test that the bookinfo samples work with the latest image eg: `user1/examples-bookinfo-*:test1.0` that you pushed.
+If all three checks pass, the local deployment is healthy. Open the URL in a
+browser and refresh several times — you should see the reviews section cycle
+between the v1 (no stars), v2 (black stars), and v3 (red stars) variants because
+Kubernetes load-balances across the three `reviews` Deployments round-robin via
+the `reviews` Service.
+
+Expected: "Bookinfo is reachable and rendering all upstream services."
+
+## Alternative exposure: `kubectl port-forward`
+
+If you can't or don't want to use the NodePort (for example on multi-node kind
+or a cluster that wasn't created from this `kind-config.yaml`):
 
 ```bash
-$ cd ../../
-$ kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
-serviceaccount/bookinfo-details created
-deployment.apps/details-v1 created
-serviceaccount/bookinfo-ratings created
-...
+bash scripts/04-port-forward.sh
 ```
 
-Wait for all the pods to be in `Running` start.
+This forwards `svc/productpage:9080` to `localhost:9080` and stays in the
+foreground. Open <http://localhost:9080/productpage>. Stop with `Ctrl+C`.
+
+## Part 2: Metrics and load generation
+
+Install Prometheus and Grafana:
 
 ```bash
-$ kubectl get pods
-NAME                              READY   STATUS    RESTARTS   AGE
-details-v1-7f556f5c6b-485l2       2/2     Running   0          10m
-productpage-v1-84c8f95c8d-tlml2   2/2     Running   0          10m
-ratings-v1-66777f856b-2ls78       2/2     Running   0          10m
-reviews-v1-64c47f4f44-rx642       2/2     Running   0          10m
-reviews-v2-66b6b95f44-s5nt6       2/2     Running   0          10m
-reviews-v3-7f69dd7fd4-zjvc8       2/2     Running   0          10m
+bash scripts/06-install-metrics.sh
 ```
 
-Once all the pods are in the `Running` state. Test if the bookinfo works through cli.
+Grafana access:
 
 ```bash
-$ kubectl exec -it "$(kubectl get pod -l app=ratings -o jsonpath='{.items[0].metadata.name}')" -c ratings -- curl productpage:9080/productpage | grep -o "<title>.*</title>"
-<title>Simple Bookstore App</title>
+kubectl -n istio-system port-forward svc/grafana 3000:3000
 ```
 
-You can also test it by hitting productpage in the browser.
+Open <http://localhost:3000> and look for the Bookinfo dashboard.
+
+Traffic generation starts automatically when you run `scripts/run-all.sh`.
+If you need to start it manually:
 
 ```bash
-http://192.168.39.116:31395/productpage
+bash scripts/08-start-load-generator.sh
 ```
 
-You should see the following in the browser.
+## Part 3: Tracing and topology
 
-![star](https://user-images.githubusercontent.com/2920003/86032538-212ff900-ba55-11ea-9492-d4bc90656a02.png)
+Reapply the Istio profile to ensure the tracing backend is configured:
 
-**Note**: If everything works as mentioned above, request a new official set of images be built and pushed from the reviewer, and add another commit to the original PR with the version changes.
+```bash
+bash scripts/02-install-istio.sh
+```
 
-Bookinfo is tested by istio.io integration tests. You can find them under [tests](https://github.com/istio/istio.io/tree/master/tests) in the [istio/istio.io](https://github.com/istio/istio.io) repository.
+Install Jaeger, Kiali, Kiali CRDs/CR, and Telemetry (100% sampling for bookinfo):
+
+```bash
+bash scripts/07-install-tracing.sh
+```
+
+Access Kiali:
+
+```bash
+kubectl -n kiali port-forward svc/kiali 20001:20001
+```
+
+Access Jaeger:
+
+```bash
+kubectl -n jaeger port-forward svc/tracing 16686:80
+```
+
+## Cleanup
+
+Stop port-forwards (Ctrl+C in each terminal) and stop the traffic generator:
+
+```bash
+bash scripts/09-stop-load-generator.sh
+```
+
+```bash
+bash scripts/99-cleanup.sh
+```
+
+Deletes the `bookinfo` kind cluster (and therefore everything inside it). The
+script is a no-op if the cluster doesn't exist.
+
+## Configuration knobs
+
+All scripts honor a few env vars if you want to deviate from the defaults:
+
+| Variable | Default | Used by |
+| ------------- | ---------- | ------- |
+| `CLUSTER_NAME` | `bookinfo` | 01, 02, 03, 99 |
+| `NAMESPACE` | `bookinfo` | 02, 03 |
+| `LOCAL_PORT` | `9080` | 03 |
+| `URL` | `http://localhost:30080/productpage` | 04 |
+| `URL` | `http://localhost:30080/productpage` | 08 |
+| `THREADS` | `5` | 08 |
+| `DELAY_MIN` | `0.1` | 08 |
+| `DELAY_MAX` | `1.0` | 08 |
+
+Example: `CLUSTER_NAME=demo bash scripts/01-create-cluster.sh`.
+
+## Troubleshooting
+
+- **`docker daemon is not reachable`** — start Docker Desktop and wait until
+  the whale icon stops animating, then retry.
+- **`context 'kind-bookinfo' not found`** when running 02 — you skipped step
+  01. Run `bash scripts/01-create-cluster.sh` first.
+- **Validate script fails with HTTP 000 / connection refused** — pods may not
+  be Ready yet. Check `kubectl -n bookinfo get pods`. If they're stuck in
+  `ContainerCreating`, the images are still being pulled — wait and retry.
+- **Port 30080 already in use on the host** — something else is bound to it.
+-  Either free the port or destroy the cluster, edit `kind-config.yaml` to use
+  a different `hostPort`, and recreate.
+- **Ingress gateway NodePort conflict** — if `istio-ingressgateway` cannot
+  bind `30080`, delete any leftover `productpage` NodePort service or run
+  `bash scripts/99-cleanup.sh` and re-run `bash scripts/run-all.sh`.
+
+## What's next
+
+Once the no-mesh baseline is verified, the next phases will introduce Istio
+using the manifests already present in this repository:
+
+- `networking/` — DestinationRules and VirtualServices for traffic routing.
+- `gateway-api/` — Kubernetes Gateway API resources.
+- `policy/` — example AuthorizationPolicy and friends.
+- `demo-profile-no-gateways.yaml` — IstioOperator profile to install the
+  control plane without the default gateways.

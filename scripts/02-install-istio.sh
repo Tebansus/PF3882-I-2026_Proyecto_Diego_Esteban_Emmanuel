@@ -30,7 +30,8 @@ fi
 
 # Check if Istio is already installed
 if kubectl get namespace istio-system >/dev/null 2>&1; then
-  echo "Istio is already installed. Skipping installation."
+  echo "Istio is already installed. Reapplying profile to keep mesh config in sync."
+  istioctl install -f "${ISTIO_PROFILE}" --skip-confirmation
 else
   echo "Installing Istio control plane using profile: ${ISTIO_PROFILE}"
   istioctl install -f "${ISTIO_PROFILE}" --skip-confirmation
@@ -39,6 +40,9 @@ fi
 # Wait for istiod to be ready
 echo "Waiting for Istio control plane (istiod) to be ready..."
 kubectl wait --for=condition=Available --timeout=300s deployment/istiod -n istio-system
+
+echo "Waiting for Istio ingress gateway to be ready..."
+kubectl wait --for=condition=Available --timeout=300s deployment/istio-ingressgateway -n istio-system
 
 echo "Istio control plane installed successfully."
 echo
