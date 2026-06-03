@@ -25,6 +25,9 @@ kubectl -n "${NAMESPACE}" apply -f "${KUBE_DIR}/bookinfo.yaml"
 echo "Applying Istio Gateway + VirtualService for Bookinfo..."
 kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/bookinfo-gateway.yaml"
 
+echo "Applying DestinationRule for reviews subsets..."
+kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/destination-rules.yaml"
+
 echo "Waiting for all deployments to become Available (timeout: 5m)..."
 kubectl -n "${NAMESPACE}" wait --for=condition=Available --timeout=300s deployment --all
 
