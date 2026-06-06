@@ -27,14 +27,3 @@ kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/bookinfo-gateway
 
 echo "Applying DestinationRule for reviews subsets..."
 kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/destination-rules.yaml"
-
-echo "Applying reviews canary VirtualService..."
-kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/virtual-service-canary.yaml"
-
-echo "Waiting for all deployments to become Available (timeout: 5m)..."
-kubectl -n "${NAMESPACE}" wait --for=condition=Available --timeout=300s deployment --all
-
-echo
-kubectl -n "${NAMESPACE}" get pods -o wide
-echo
-kubectl -n "${NAMESPACE}" get svc

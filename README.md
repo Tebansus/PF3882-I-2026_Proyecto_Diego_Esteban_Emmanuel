@@ -74,10 +74,16 @@ Single control-plane node with three host port mappings:
 
 ## Quick start (TL;DR)
 
-From the project root (`bookinfo/`):
+The orchestration supports two routing modes controlled by the environment variable `ROUTING_MODE`:
+
+- `canary`: applies the canary VirtualService and runs `scripts/10-verify-canary.sh`.
+- `header`: applies a header-based VirtualService which routes requests containing the header `end-user: jason` to a specific `reviews` version and runs `scripts/11-test-header-routing.sh`.
+
+Run the full pipeline with a mode:
 
 ```bash
-bash scripts/run-all.sh
+ROUTING_MODE=canary bash scripts/run-all.sh
+ROUTING_MODE=header bash scripts/run-all.sh
 ```
 
 This runs the full project, including ingress routing, metrics, tracing, and the traffic generator.
@@ -184,6 +190,32 @@ Kubernetes load-balances across the three `reviews` Deployments round-robin via
 the `reviews` Service.
 
 Expected: "Bookinfo is reachable and rendering all upstream services."
+
+### 5. Configure reviews routing
+
+```bash
+# canary routing
+kubectl -n bookinfo apply -f networking/virtual-service-canary.yaml
+
+# header-based routing
+kubectl -n bookinfo apply -f networking/combined-virtual-service.yaml
+```
+
+What it does:
+
+- `networking/virtual-service-canary.yaml` routes `reviews` traffic through the
+  canary configuration and is used by the `canary` routing mode.
+- `networking/combined-virtual-service.yaml` enables header-based routing so
+  requests with `end-user: jason` are sent to the targeted version of
+  `reviews`.
+
+If you want to verify routing behavior manually after applying one of the
+VirtualServices, use:
+
+```bash
+bash scripts/10-verify-canary.sh
+bash scripts/11-test-header-routing.sh
+```
 
 ## Alternative exposure: `kubectl port-forward`
 
