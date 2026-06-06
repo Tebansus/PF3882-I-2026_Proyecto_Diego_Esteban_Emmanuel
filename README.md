@@ -74,10 +74,16 @@ Single control-plane node with three host port mappings:
 
 ## Quick start (TL;DR)
 
-From the project root (`bookinfo/`):
+The orchestration supports two routing modes controlled by the environment variable `ROUTING_MODE`:
+
+- `canary`: applies the canary VirtualService and runs `scripts/10-verify-canary.sh`.
+- `header`: applies a header-based VirtualService which routes requests containing the header `end-user: jason` to a specific `reviews` version and runs `scripts/11-test-header-routing.sh`.
+
+Run the full pipeline with a mode:
 
 ```bash
-bash scripts/run-all.sh
+ROUTING_MODE=canary bash scripts/run-all.sh
+ROUTING_MODE=header bash scripts/run-all.sh
 ```
 
 This runs the full project, including ingress routing, metrics, tracing, and the traffic generator.
