@@ -1,0 +1,35 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: reviews-combined
+spec:
+  hosts:
+    - reviews
+  # Priority order:
+  # 1) If the request contains header `end-user: jason`, route to reviews:v2 exclusively.
+  # 2) Otherwise, use the canary deployment weights as the fallback behavior.
+  http:
+    - name: header-based-routing
+      match:
+        - headers:
+            end-user:
+              exact: "jason"
+      route:
+        - destination:
+            host: reviews
+            subset: v2
+          weight: 100
+    - name: canary-default-routing
+      route:
+        - destination:
+            host: reviews
+            subset: v1
+          weight: 90
+        - destination:
+            host: reviews
+            subset: v2
+          weight: 5
+        - destination:
+            host: reviews
+            subset: v3
+          weight: 5
