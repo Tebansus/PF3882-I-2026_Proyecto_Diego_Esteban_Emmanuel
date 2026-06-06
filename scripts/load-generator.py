@@ -27,7 +27,7 @@ def worker(thread_id, url, delay_min, delay_max):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Bookinfo Load Generator")
-    parser.add_argument("--url", default="http://localhost:30080/productpage", help="URL to hit")
+    parser.add_argument("--url", default="http://localhost:31080/productpage", help="URL to hit")
     parser.add_argument("--threads", type=int, default=None, help="Number of concurrent threads")
     parser.add_argument("--delay-min", type=float, default=0.1, help="Minimum delay between requests")
     parser.add_argument("--delay-max", type=float, default=1.0, help="Maximum delay between requests")

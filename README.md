@@ -13,7 +13,7 @@ Istio service mesh installed and configured. This includes installing the Istio 
   injection enabled: `productpage-v1`, `details-v1`, `ratings-v1`, `reviews-v1`,
   `reviews-v2`, `reviews-v3`.
 - The `productpage` frontend exposed through the Istio ingress gateway at
-  <http://localhost:30080/productpage>.
+  <http://localhost:31080/productpage>.
 - An Istio `Gateway` and `VirtualService` that route external traffic to `productpage`.
 - An automated smoke test that verifies the page actually renders data coming
   from the `details` and `reviews` services, and that Istio is properly installed.
@@ -55,7 +55,7 @@ bookinfo/
   ├── 09-stop-load-generator.sh        # stops the traffic generator
   ├── 99-cleanup.sh                    # deletes the kind cluster
   ├── run-all.sh                       # 01 -> 02 -> 03 -> 05 -> 06 -> 07 -> 08
-  └── productpage-nodeport-30080.yaml  # Optional NodePort override (fallback)
+  └── productpage-nodeport-31080.yaml  # Optional NodePort override (fallback)
 ```
 
 The upstream Istio sample manifests under `platform/kube/` are **not modified**.
@@ -68,7 +68,7 @@ Single control-plane node with three host port mappings:
 
 | Container port | Host port | Used for |
 | --- | --- | --- |
-| 30080 | 30080 | Istio ingress gateway NodePort (HTTP) |
+| 31080 | 31080 | Istio ingress gateway NodePort (HTTP) |
 | 80 | 8080 | reserved for an ingress controller (future) |
 | 443 | 8443 | reserved for an ingress controller (future) |
 
@@ -84,7 +84,7 @@ This runs the full project, including ingress routing, metrics, tracing, and the
 
 Open the app:
 
-- <http://localhost:30080/productpage>
+- <http://localhost:31080/productpage>
 
 Expose the UIs (run each in its own terminal; keep them running):
 
@@ -171,7 +171,7 @@ bash scripts/05-validate.sh
 What it does:
 
 - Checks that Istio control plane is installed and ready.
-- `curl`s <http://localhost:30080/productpage> and asserts HTTP 200.
+- `curl`s <http://localhost:31080/productpage> and asserts HTTP 200.
 - Greps the response for the productpage HTML title, the "Book Details" section
   (proves the `details` service was reached), and the "Book Reviews" section
   (proves a `reviews` pod was reached). Reviews itself calls `ratings`, so any
@@ -270,8 +270,8 @@ All scripts honor a few env vars if you want to deviate from the defaults:
 | `CLUSTER_NAME` | `bookinfo` | 01, 02, 03, 99 |
 | `NAMESPACE` | `bookinfo` | 02, 03 |
 | `LOCAL_PORT` | `9080` | 03 |
-| `URL` | `http://localhost:30080/productpage` | 04 |
-| `URL` | `http://localhost:30080/productpage` | 08 |
+| `URL` | `http://localhost:31080/productpage` | 04 |
+| `URL` | `http://localhost:31080/productpage` | 08 |
 | `THREADS` | `5` | 08 |
 | `DELAY_MIN` | `0.1` | 08 |
 | `DELAY_MAX` | `1.0` | 08 |
@@ -287,11 +287,11 @@ Example: `CLUSTER_NAME=demo bash scripts/01-create-cluster.sh`.
 - **Validate script fails with HTTP 000 / connection refused** — pods may not
   be Ready yet. Check `kubectl -n bookinfo get pods`. If they're stuck in
   `ContainerCreating`, the images are still being pulled — wait and retry.
-- **Port 30080 already in use on the host** — something else is bound to it.
+- **Port 31080 already in use on the host** — something else is bound to it.
 -  Either free the port or destroy the cluster, edit `kind-config.yaml` to use
   a different `hostPort`, and recreate.
 - **Ingress gateway NodePort conflict** — if `istio-ingressgateway` cannot
-  bind `30080`, delete any leftover `productpage` NodePort service or run
+  bind `31080`, delete any leftover `productpage` NodePort service or run
   `bash scripts/99-cleanup.sh` and re-run `bash scripts/run-all.sh`.
 
 ## What's next

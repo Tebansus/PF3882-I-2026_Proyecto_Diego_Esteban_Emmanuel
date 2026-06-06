@@ -12,7 +12,7 @@ bash "${SCRIPT_DIR}/07-install-tracing.sh"
 bash "${SCRIPT_DIR}/08-start-load-generator.sh"
 
 echo
-echo "Done. Bookinfo is live at: http://localhost:30080/productpage"
+echo "Done. Bookinfo is live at: http://localhost:31080/productpage"
 echo "Grafana: http://localhost:3000"
 echo "Kiali:   http://localhost:20001/kiali"
 echo "Jaeger:  http://localhost:16686/jaeger"
