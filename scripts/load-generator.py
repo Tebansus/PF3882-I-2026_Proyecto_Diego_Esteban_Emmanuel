@@ -4,6 +4,8 @@ import random
 import threading
 import sys
 import argparse
+import os
+import platform
 
 def worker(thread_id, url, delay_min, delay_max):
     print(f"Thread {thread_id} starting...")
@@ -26,10 +28,17 @@ def worker(thread_id, url, delay_min, delay_max):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Bookinfo Load Generator")
     parser.add_argument("--url", default="http://localhost:30080/productpage", help="URL to hit")
-    parser.add_argument("--threads", type=int, default=5, help="Number of concurrent threads")
+    parser.add_argument("--threads", type=int, default=None, help="Number of concurrent threads")
     parser.add_argument("--delay-min", type=float, default=0.1, help="Minimum delay between requests")
     parser.add_argument("--delay-max", type=float, default=1.0, help="Maximum delay between requests")
     args = parser.parse_args()
+
+    if args.threads is None:
+        cpu_count = os.cpu_count() or 1
+        if platform.system() == "Windows":
+            args.threads = cpu_count
+        else:
+            args.threads = max(1, cpu_count // 3)
 
     print(f"Starting load generator against {args.url} with {args.threads} threads.")
     print("Press Ctrl+C to stop.")
