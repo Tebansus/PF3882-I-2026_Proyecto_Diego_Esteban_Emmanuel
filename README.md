@@ -191,6 +191,32 @@ the `reviews` Service.
 
 Expected: "Bookinfo is reachable and rendering all upstream services."
 
+### 5. Configure reviews routing
+
+```bash
+# canary routing
+kubectl -n bookinfo apply -f networking/virtual-service-canary.yaml
+
+# header-based routing
+kubectl -n bookinfo apply -f networking/combined-virtual-service.yaml
+```
+
+What it does:
+
+- `networking/virtual-service-canary.yaml` routes `reviews` traffic through the
+  canary configuration and is used by the `canary` routing mode.
+- `networking/combined-virtual-service.yaml` enables header-based routing so
+  requests with `end-user: jason` are sent to the targeted version of
+  `reviews`.
+
+If you want to verify routing behavior manually after applying one of the
+VirtualServices, use:
+
+```bash
+bash scripts/10-verify-canary.sh
+bash scripts/11-test-header-routing.sh
+```
+
 ## Alternative exposure: `kubectl port-forward`
 
 If you can't or don't want to use the NodePort (for example on multi-node kind
