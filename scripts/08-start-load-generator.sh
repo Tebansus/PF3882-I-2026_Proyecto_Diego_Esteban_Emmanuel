@@ -4,7 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-URL="${URL:-http://localhost:30080/productpage}"
+HOST_PORT="${HOST_PORT:-31080}"
+URL="${URL:-http://localhost:${HOST_PORT}/productpage}"
 THREADS="${THREADS:-5}"
 DELAY_MIN="${DELAY_MIN:-0.1}"
 DELAY_MAX="${DELAY_MAX:-1.0}"

@@ -5,8 +5,8 @@ nodes:
   - role: control-plane
     extraPortMappings:
       # Productpage NodePort -> host (used by 02-deploy or productpage-nodeport.yaml)
-      - containerPort: 30080
-        hostPort: 30080
+      - containerPort: 31080
+        hostPort: 31080
         protocol: TCP
       # Reserved for an ingress controller, if added later
       - containerPort: 80

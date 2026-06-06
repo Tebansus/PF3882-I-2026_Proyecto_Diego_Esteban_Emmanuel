@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Smoke test: hits productpage via the kind NodePort (30080) and checks that the
+# Smoke test: hits productpage via the kind NodePort (31080) and checks that the
 # response includes content from the details and reviews services.
 
-URL="${URL:-http://localhost:30080/productpage}"
+HOST_PORT="${HOST_PORT:-31080}"
+URL="${URL:-http://localhost:${HOST_PORT}/productpage}"
 
 echo "Validating Istio installation..."
 if ! kubectl get namespace istio-system >/dev/null 2>&1; then

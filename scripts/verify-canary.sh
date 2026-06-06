@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-URL="${URL:-http://localhost:30080}"
+HOST_PORT="${HOST_PORT:-31080}"
+URL="${URL:-http://localhost:${HOST_PORT}}"
 SAMPLES="${SAMPLES:-100}"
 TOLERANCE="${TOLERANCE:-0.05}"
 ENDPOINT="${URL%/}/api/v1/products/0/reviews"
