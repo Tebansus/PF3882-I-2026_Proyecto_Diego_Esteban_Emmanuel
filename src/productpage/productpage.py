@@ -180,6 +180,7 @@ def getForwardHeaders(request):
         'sw8',
 
         # Application-specific headers to forward.
+        'end-user',
         'user-agent',
 
         # Context and session specific headers
