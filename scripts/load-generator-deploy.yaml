@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-generator
+  namespace: bookinfo
+  labels:
+    app: load-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: load-generator
+  template:
+    metadata:
+      labels:
+        app: load-generator
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+      - name: load-generator
+        image: bookinfo-loadgen:latest # You should build and load this image into your cluster, e.g. using 'kind load docker-image'
+        imagePullPolicy: IfNotPresent
+        args:
+          - "--url"
+          - "http://productpage:9080/productpage"
+          - "--threads"
+          - "4"
+          - "--delay-min"
+          - "0.1"
+          - "--delay-max"
+          - "0.5"
+          - "--header-rate"
+          - "0.2"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
