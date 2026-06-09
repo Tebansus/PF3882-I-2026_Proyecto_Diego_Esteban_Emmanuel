@@ -55,7 +55,8 @@ run_test() {
   local result
 
   if [[ "$name" == "header" ]]; then
-    extra_args=("-H" "${HEADER_NAME}: ${HEADER_VALUE}")
+    curl -s -c cookie.txt -d "username=${HEADER_VALUE}" "http://localhost:31080/login" > /dev/null
+    extra_args=("-b" "cookie.txt")
   fi
 
   echo "Testing ${name} request against ${URL}..."

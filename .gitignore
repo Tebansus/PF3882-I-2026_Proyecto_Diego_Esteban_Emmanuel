@@ -34,3 +34,7 @@ Desktop.ini
 .idea/
 *.swp
 *~
+
+# --- Agent / AI tools ---
+.antigravitycli
+.claude
