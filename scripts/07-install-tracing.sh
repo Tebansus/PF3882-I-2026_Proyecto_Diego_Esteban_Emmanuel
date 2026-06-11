@@ -19,6 +19,7 @@ kubectl apply -f "${PROJECT_ROOT}/tracing/jaeger.yaml"
 
 echo "Applying Kiali CRDs and custom resource..."
 kubectl apply -f "${PROJECT_ROOT}/tracing/kiali-crd.yaml"
+kubectl wait --for condition=established --timeout=60s crd/kialis.kiali.io
 kubectl apply -f "${PROJECT_ROOT}/tracing/kiali-cr.yaml"
 
 echo "Installing Kiali (addon deployment)..."

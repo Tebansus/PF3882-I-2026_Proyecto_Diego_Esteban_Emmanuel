@@ -51,7 +51,7 @@ $PYTHON "${PROJECT_ROOT}/scripts/load-generator.py" \
   --header-rate "${HEADER_RATE}" \
   --latency-threshold "${LATENCY_THRESHOLD}" \
   --stats-interval "${STATS_INTERVAL}" \
-  "${LATENCY_ARGS[@]}" \
+  ${LATENCY_ARGS[@]+"${LATENCY_ARGS[@]}"} \
   > "${LOG_FILE}" 2>&1 &
 
 PID="$!"
