@@ -9,6 +9,10 @@ URL="${URL:-http://localhost:${HOST_PORT}/productpage}"
 THREADS="${THREADS:-5}"
 DELAY_MIN="${DELAY_MIN:-0.1}"
 DELAY_MAX="${DELAY_MAX:-1.0}"
+HEADER_RATE="${HEADER_RATE:-0.2}"
+LATENCY_LOG="${LATENCY_LOG:-}"
+LATENCY_THRESHOLD="${LATENCY_THRESHOLD:-4.0}"
+STATS_INTERVAL="${STATS_INTERVAL:-10}"
 
 LOG_DIR="${PROJECT_ROOT}/logs"
 PID_FILE="${LOG_DIR}/load-generator.pid"
@@ -33,12 +37,21 @@ if [[ -f "${PID_FILE}" ]]; then
   fi
 fi
 
+LATENCY_ARGS=()
+if [[ -n "${LATENCY_LOG}" ]]; then
+  LATENCY_ARGS+=(--latency-log "${LATENCY_LOG}")
+fi
+
 echo "Starting load generator against ${URL}..."
 $PYTHON "${PROJECT_ROOT}/scripts/load-generator.py" \
   --url "${URL}" \
   --threads "${THREADS}" \
   --delay-min "${DELAY_MIN}" \
   --delay-max "${DELAY_MAX}" \
+  --header-rate "${HEADER_RATE}" \
+  --latency-threshold "${LATENCY_THRESHOLD}" \
+  --stats-interval "${STATS_INTERVAL}" \
+  "${LATENCY_ARGS[@]}" \
   > "${LOG_FILE}" 2>&1 &
 
 PID="$!"

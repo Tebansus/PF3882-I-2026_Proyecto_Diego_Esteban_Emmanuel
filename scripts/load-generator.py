@@ -1,20 +1,59 @@
 import urllib.request
 import time
 import random
+import signal
 import threading
 import sys
 import argparse
 import os
 import platform
 
-def worker(thread_id, url, delay_min, delay_max, header_rate):
+
+class StopRequested(Exception):
+    pass
+
+
+def _handle_stop_signal(signum, frame):
+    raise StopRequested()
+
+
+stats_lock = threading.Lock()
+stats = {"total": 0, "slow": 0}
+
+latency_log_lock = threading.Lock()
+latency_log_file = None
+
+
+def record_latency(thread_id, elapsed, status, threshold):
+    with stats_lock:
+        stats["total"] += 1
+        if elapsed >= threshold:
+            stats["slow"] += 1
+
+    if latency_log_file is not None:
+        with latency_log_lock:
+            latency_log_file.write(f"{time.time():.3f},{thread_id},{elapsed:.3f},{status}\n")
+            latency_log_file.flush()
+
+
+def stats_printer(interval, threshold, stop_event):
+    while not stop_event.wait(interval):
+        with stats_lock:
+            total = stats["total"]
+            slow = stats["slow"]
+        if total:
+            pct = slow / total * 100
+            print(f"[stats] requests={total} slow(>={threshold}s)={slow} ({pct:.1f}%)", flush=True)
+
+
+def worker(thread_id, url, delay_min, delay_max, header_rate, latency_threshold):
     print(f"Thread {thread_id} starting...")
     import urllib.parse
     import http.cookiejar
     parsed_url = urllib.parse.urlparse(url)
     login_url = f"{parsed_url.scheme}://{parsed_url.netloc}/login"
     cookie = None
-    
+
     if header_rate > 0:
         data = urllib.parse.urlencode({'username': 'jason'}).encode('utf-8')
         while cookie is None:
@@ -36,18 +75,26 @@ def worker(thread_id, url, delay_min, delay_max, header_rate):
         try:
             # Simulate a user browsing
             time.sleep(random.uniform(delay_min, delay_max))
-            
+
             # Hit productpage
             req = urllib.request.Request(url)
             req.add_header('User-Agent', f'Bookinfo-LoadGenerator/1.0 Thread-{thread_id}')
-            
+
             if random.random() < header_rate and cookie:
                 req.add_header('Cookie', cookie)
-            
-            with urllib.request.urlopen(req, timeout=5) as response:
-                status = response.getcode()
-                if status != 200:
-                    print(f"Thread {thread_id}: Unexpected status {status}")
+
+            start = time.monotonic()
+            status = None
+            try:
+                with urllib.request.urlopen(req, timeout=12) as response:
+                    status = response.getcode()
+                    if status != 200:
+                        print(f"Thread {thread_id}: Unexpected status {status}")
+            except Exception as e:
+                status = "error"
+            finally:
+                elapsed = time.monotonic() - start
+                record_latency(thread_id, elapsed, status, latency_threshold)
         except Exception as e:
             pass # Keep it quiet to not flood logs, or print(f"Thread {thread_id}: Error - {e}")
 
@@ -58,6 +105,9 @@ if __name__ == "__main__":
     parser.add_argument("--delay-min", type=float, default=0.1, help="Minimum delay between requests")
     parser.add_argument("--delay-max", type=float, default=1.0, help="Maximum delay between requests")
     parser.add_argument("--header-rate", type=float, default=0.2, help="Probability of adding 'end-user: jason' header (0.0 to 1.0)")
+    parser.add_argument("--latency-log", default=None, help="If set, append 'timestamp,thread_id,elapsed,status' rows to this CSV file")
+    parser.add_argument("--latency-threshold", type=float, default=4.0, help="Response time (s) at or above which a request is counted as 'slow'")
+    parser.add_argument("--stats-interval", type=float, default=10.0, help="Seconds between latency distribution summaries (0 to disable)")
     args = parser.parse_args()
     args.url = args.url.strip()
 
@@ -68,18 +118,46 @@ if __name__ == "__main__":
         else:
             args.threads = max(1, cpu_count // 3)
 
+    if args.latency_log:
+        latency_log_file = open(args.latency_log, "w", buffering=1)
+        latency_log_file.write("timestamp,thread_id,elapsed,status\n")
+
+    # Background "&" jobs in non-interactive shells start with SIGINT ignored,
+    # so rely on SIGTERM (the default signal sent by `kill`) to stop cleanly too.
+    signal.signal(signal.SIGTERM, _handle_stop_signal)
+    signal.signal(signal.SIGINT, _handle_stop_signal)
+
     print(f"Starting load generator against {args.url} with {args.threads} threads.")
     print("Press Ctrl+C to stop.")
-    
+
     threads = []
     for i in range(args.threads):
-        t = threading.Thread(target=worker, args=(i, args.url, args.delay_min, args.delay_max, args.header_rate), daemon=True)
+        t = threading.Thread(
+            target=worker,
+            args=(i, args.url, args.delay_min, args.delay_max, args.header_rate, args.latency_threshold),
+            daemon=True,
+        )
         t.start()
         threads.append(t)
-        
+
+    stop_event = threading.Event()
+    if args.stats_interval > 0:
+        st = threading.Thread(target=stats_printer, args=(args.stats_interval, args.latency_threshold, stop_event), daemon=True)
+        st.start()
+
     try:
         while True:
             time.sleep(1)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, StopRequested):
         print("\nStopping load generator.")
+    finally:
+        stop_event.set()
+        if latency_log_file is not None:
+            latency_log_file.close()
+        with stats_lock:
+            total = stats["total"]
+            slow = stats["slow"]
+        if total:
+            pct = slow / total * 100
+            print(f"[stats] final: requests={total} slow(>={args.latency_threshold}s)={slow} ({pct:.1f}%)")
         sys.exit(0)

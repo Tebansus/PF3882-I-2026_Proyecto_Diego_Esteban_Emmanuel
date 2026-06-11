@@ -306,6 +306,51 @@ To also restore `reviews` to round-robin across all versions:
 kubectl delete -f networking/virtual-service-reviews-test-v2.yaml -n bookinfo
 ```
 
+### 7. Percentage-based fault injection — 50% of traffic to `ratings`
+
+[networking/virtual-service-ratings-test-delay-50-percent.yaml](networking/virtual-service-ratings-test-delay-50-percent.yaml)
+applies the same 7s `ratings` delay as step 6, but with `fault.delay.percentage.value: 50.0`
+and **no `end-user` header match** — it affects 50% of *all* traffic that
+reaches `ratings`, regardless of who the caller is.
+
+#### Apply and validate
+
+`scripts/14-test-percentage-fault.sh` applies the required VirtualServices
+(`virtual-service-reviews-test-v2.yaml` so `jason` is routed to `reviews-v2`,
+which calls `ratings`, plus the 50% delay rule above), runs the load
+generator as `jason` for 60s while capturing per-request latencies, and
+asserts that the observed delay rate matches the configured percentage:
+
+```bash
+bash scripts/14-test-percentage-fault.sh
+```
+
+Because `productpage` retries its call to `reviews` once with a hardcoded 3s
+timeout (see `src/productpage/productpage.py:getProductReviews`), and each
+attempt makes its own independent call to `ratings`, a single `/productpage`
+request lands in one of three latency clusters:
+
+- **~0s** — first `ratings` call wasn't delayed, page renders normally.
+- **~3s** — first `ratings` call was delayed (1st attempt times out), but the
+  retry's `ratings` call wasn't delayed.
+- **~6s** — both `ratings` calls were delayed; `productpage` gives up and
+  shows "Sorry, product reviews are currently unavailable for this book."
+
+The fraction of requests taking **>= 1.5s** (i.e. landing in the ~3s or ~6s
+clusters) equals the probability that the *first* `ratings` call was
+delayed — which is exactly the configured `fault.delay.percentage.value`.
+
+You can tune the run with env vars, e.g. `DURATION`, `THREADS`,
+`LATENCY_THRESHOLD`, `TOLERANCE`. Captured samples are written to
+`logs/14-latency-fault-percentage.csv` (`timestamp,thread_id,elapsed,status`).
+
+#### Remove the fault
+
+```bash
+kubectl delete -f networking/virtual-service-ratings-test-delay-50-percent.yaml -n bookinfo
+kubectl delete -f networking/virtual-service-reviews-test-v2.yaml -n bookinfo
+```
+
 ## Alternative exposure: `kubectl port-forward`
 
 If you can't or don't want to use the NodePort (for example on multi-node kind
