@@ -14,8 +14,12 @@ LOG_DIR="${PROJECT_ROOT}/logs"
 PID_FILE="${LOG_DIR}/load-generator.pid"
 LOG_FILE="${LOG_DIR}/load-generator.log"
 
-if ! command -v python >/dev/null 2>&1; then
-  echo "ERROR: python not found in PATH." >&2
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON=python3
+elif command -v python >/dev/null 2>&1; then
+  PYTHON=python
+else
+  echo "ERROR: python/python3 not found in PATH." >&2
   exit 1
 fi
 
@@ -30,7 +34,7 @@ if [[ -f "${PID_FILE}" ]]; then
 fi
 
 echo "Starting load generator against ${URL}..."
-python "${PROJECT_ROOT}/scripts/load-generator.py" \
+$PYTHON "${PROJECT_ROOT}/scripts/load-generator.py" \
   --url "${URL}" \
   --threads "${THREADS}" \
   --delay-min "${DELAY_MIN}" \

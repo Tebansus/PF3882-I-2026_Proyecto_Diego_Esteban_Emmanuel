@@ -217,6 +217,82 @@ bash scripts/10-verify-canary.sh
 bash scripts/11-test-header-routing.sh
 ```
 
+### 6. Fault injection — 7-second latency on `ratings` for a test user
+
+This step injects an artificial 7-second delay into the `ratings` service
+scoped only to requests that carry the header `end-user: jason`, so all other
+users continue to see normal response times.
+
+#### Prerequisites
+
+Steps 1–4 must be complete and the DestinationRules must be applied:
+
+```bash
+kubectl apply -f networking/destination-rule-all.yaml -n bookinfo
+```
+
+#### Apply the fault
+
+Route user `jason` to `reviews-v2` (the only variant that calls `ratings`),
+then inject the delay:
+
+```bash
+kubectl apply -f networking/virtual-service-reviews-test-v2.yaml -n bookinfo
+kubectl apply -f networking/virtual-service-ratings-test-delay.yaml -n bookinfo
+```
+
+Confirm both VirtualServices are active:
+
+```bash
+kubectl get virtualservices -n bookinfo
+```
+
+Expected output includes entries for `ratings` and `reviews`.
+
+#### Test as Jason
+
+1. Open <http://localhost:31080/productpage> (or <http://localhost:9080/productpage> if using port-forward).
+2. Click **Sign in** and log in as `jason` (password: `jason`).
+3. Observe a **~7-second pause** before the reviews section renders — this is the injected delay propagating from `ratings` through `reviews-v2` to `productpage`.
+4. Log out and reload the page as an anonymous user — the page should load instantly with no delay.
+
+#### Verify via `curl`
+
+```bash
+# With the delay (jason) — takes ~7 s
+curl -s -o /dev/null -w "%{time_total}s\n" \
+  -H "end-user: jason" \
+  http://localhost:31080/productpage
+
+# Without the delay (anonymous) — returns quickly
+curl -s -o /dev/null -w "%{time_total}s\n" \
+  http://localhost:31080/productpage
+```
+
+#### Observe in Grafana / Prometheus
+
+Port-forward the observability stack if not already running:
+
+```bash
+kubectl -n istio-system port-forward svc/prometheus 9090:9090 &
+kubectl -n istio-system port-forward svc/grafana 3000:3000 &
+```
+
+- **Prometheus** (<http://localhost:9090>) — query `istio_request_duration_milliseconds_bucket` filtered by `destination_service="ratings.bookinfo.svc.cluster.local"` to see the latency spike.
+- **Grafana** (<http://localhost:3000>) — open the **Bookinfo** dashboard; the `ratings` service panel will show elevated p99 latency only during the period when `jason` was generating traffic.
+
+#### Remove the fault
+
+```bash
+kubectl delete -f networking/virtual-service-ratings-test-delay.yaml -n bookinfo
+```
+
+To also restore `reviews` to round-robin across all versions:
+
+```bash
+kubectl delete -f networking/virtual-service-reviews-test-v2.yaml -n bookinfo
+```
+
 ## Alternative exposure: `kubectl port-forward`
 
 If you can't or don't want to use the NodePort (for example on multi-node kind
