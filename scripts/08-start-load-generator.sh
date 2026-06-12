@@ -22,8 +22,10 @@ if command -v python3 >/dev/null 2>&1; then
   PYTHON=python3
 elif command -v python >/dev/null 2>&1; then
   PYTHON=python
+elif command -v py >/dev/null 2>&1; then
+  PYTHON=py
 else
-  echo "ERROR: python/python3 not found in PATH." >&2
+  echo "ERROR: python, python3, or py not found in PATH." >&2
   exit 1
 fi
 
