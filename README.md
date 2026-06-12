@@ -269,6 +269,19 @@ curl -s -o /dev/null -w "%{time_total}s\n" \
   http://localhost:31080/productpage
 ```
 
+#### Automated test
+
+`scripts/13-test-latency-fault.sh` automates the checks above: it confirms
+the `ratings` VirtualService has the 7s fault delay, then sends one request
+as an anonymous user (expects a fast response with reviews rendered) and one
+as `jason` (expects a ~6s response — the 7s `ratings` delay trips
+productpage's hardcoded 3s timeout with one retry — showing "Sorry, product
+reviews are currently unavailable for this book.").
+
+```bash
+bash scripts/13-test-latency-fault.sh
+```
+
 #### Observe in Grafana / Prometheus
 
 Port-forward the observability stack if not already running:
