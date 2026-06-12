@@ -38,3 +38,6 @@ Desktop.ini
 # --- Agent / AI tools ---
 .antigravitycli
 .claude
+
+# --- Cookie ---
+cookie.txt

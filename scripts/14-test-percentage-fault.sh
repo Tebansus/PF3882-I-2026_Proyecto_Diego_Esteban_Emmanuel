@@ -45,7 +45,7 @@ pass_msg() { printf "  PASS  %s\n" "$1"; }
 fail_msg() { printf "  FAIL  %s\n" "$1" >&2; FAILED=1; }
 FAILED=0
 
-PYTHON_EXEC="$(command -v python3 || command -v python || true)"
+PYTHON_EXEC="$(command -v python || command -v python3 || true)"
 if [[ -z "${PYTHON_EXEC}" ]]; then
   echo "ERROR: python or python3 is required" >&2
   exit 1
