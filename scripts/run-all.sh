@@ -5,6 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAMESPACE="${NAMESPACE:-bookinfo}"
 CLUSTER_NAME="${CLUSTER_NAME:-bookinfo}"
 
+# Ensure any previously deployed load generator is stopped before starting.
+bash "${SCRIPT_DIR}/09-stop-load-generator.sh" || true
+
 echo "Running 01-create-cluster.sh: create the kind cluster"
 bash "${SCRIPT_DIR}/01-create-cluster.sh"
 echo
