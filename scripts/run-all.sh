@@ -5,6 +5,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAMESPACE="${NAMESPACE:-bookinfo}"
 CLUSTER_NAME="${CLUSTER_NAME:-bookinfo}"
 
+PYTHON_EXEC="$(command -v python || command -v python3 || true)"
+if [[ -z "${PYTHON_EXEC}" ]]; then
+  echo "ERROR: python or python3 is required" >&2
+  exit 1
+fi
+
 echo "Running 01-create-cluster.sh: create the kind cluster"
 bash "${SCRIPT_DIR}/01-create-cluster.sh"
 echo
@@ -42,37 +48,46 @@ echo
 echo "Running 11-test-header-routing.sh: exercise header-based reviews routing"
 bash "${SCRIPT_DIR}/11-test-header-routing.sh"
 echo
-echo "Done. Bookinfo is live at: http://localhost:31080/productpage"
-echo "Grafana: http://localhost:3000"
-echo "Kiali:   http://localhost:20001/kiali"
-echo "Jaeger:  http://localhost:16686/jaeger"
-echo
-echo "Applying delay to ratings"
+echo "Switching to latency fault injection: route jason to reviews v2 and inject a 7s delay on ratings"
 kubectl -n "${NAMESPACE}" delete virtualservice reviews-combined --ignore-not-found=true
 kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/destination-rule-all.yaml"
 kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/virtual-service-reviews-test-v2.yaml"
 kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/virtual-service-ratings-test-delay.yaml"
 kubectl get virtualservices -n bookinfo
+echo
+echo "Running 13-test-latency-fault.sh: verify that the 7s ratings delay causes reviews to time out"
 bash "${SCRIPT_DIR}/13-test-latency-fault.sh"
+echo "Removing latency fault injection"
 kubectl -n "${NAMESPACE}" delete -f "${SCRIPT_DIR}/../networking/virtual-service-ratings-test-delay.yaml" --ignore-not-found=true
 kubectl -n "${NAMESPACE}" delete -f "${SCRIPT_DIR}/../networking/virtual-service-reviews-test-v2.yaml" --ignore-not-found=true
-
+echo
+echo "Switching to 50% latency fault: inject a 7s delay on half of all ratings requests"
 kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/virtual-service-ratings-test-delay-50-percent.yaml"
 kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/virtual-service-reviews-test-v2.yaml"
+echo
+echo "Running 14-test-percentage-fault.sh: verify that roughly 50% of reviews requests observe the delay"
 bash "${SCRIPT_DIR}/14-test-percentage-fault.sh"
+echo "Removing percentage fault injection"
 kubectl -n "${NAMESPACE}" delete -f "${SCRIPT_DIR}/../networking/virtual-service-ratings-test-delay-50-percent.yaml" --ignore-not-found=true
 kubectl -n "${NAMESPACE}" delete -f "${SCRIPT_DIR}/../networking/virtual-service-reviews-test-v2.yaml" --ignore-not-found=true
-
+echo
+echo "Applying retry and timeout configuration for reviews: 3s timeout with 3 retries on 5xx errors"
 kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/virtual-service-reviews-test-v2.yaml"
 kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/virtual-service-ratings-test-delay.yaml"
 kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/virtual-service-reviews-timeout-3s.yaml"
-
-echo "Building load generator image"
+echo
+echo "Running 15-test-retry-mechanism.py: verify that the retry policy improves the success rate against 5xx faults"
+"${PYTHON_EXEC}" "${SCRIPT_DIR}/15-test-retry-mechanism.py"
+echo
+echo "Building and deploying the in-cluster load generator"
 docker build -t bookinfo-loadgen:latest -f "${SCRIPT_DIR}/Dockerfile.loadgen" "${SCRIPT_DIR}"
-echo "Loading load generator image into kind cluster"
 kind load docker-image bookinfo-loadgen:latest --name "${CLUSTER_NAME}"
-echo "Deploying load generator to cluster"
 kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/load-generator-deploy.yaml"
 echo
-
+echo "Scaling down the load generator to idle"
 kubectl -n "${NAMESPACE}" scale deployment load-generator --replicas=0
+echo
+echo "Done. Bookinfo is live at: http://localhost:31080/productpage"
+echo "Grafana: http://localhost:3000"
+echo "Kiali:   http://localhost:20001/kiali"
+echo "Jaeger:  http://localhost:16686/jaeger"
