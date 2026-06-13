@@ -17,5 +17,6 @@ spec:
           weight: 50
       timeout: 3s
       retries:
-        attempts: 1
-        perTryTimeout: 3s
+        attempts: 3
+        perTryTimeout: 2s
+        retryOn: 5xx
