@@ -5,9 +5,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAMESPACE="${NAMESPACE:-bookinfo}"
 CLUSTER_NAME="${CLUSTER_NAME:-bookinfo}"
 
-# Ensure any previously deployed load generator is stopped before starting.
-bash "${SCRIPT_DIR}/09-stop-load-generator.sh" || true
-
 echo "Running 01-create-cluster.sh: create the kind cluster"
 bash "${SCRIPT_DIR}/01-create-cluster.sh"
 echo
@@ -66,6 +63,10 @@ bash "${SCRIPT_DIR}/14-test-percentage-fault.sh"
 kubectl -n "${NAMESPACE}" delete -f "${SCRIPT_DIR}/../networking/virtual-service-ratings-test-delay-50-percent.yaml" --ignore-not-found=true
 kubectl -n "${NAMESPACE}" delete -f "${SCRIPT_DIR}/../networking/virtual-service-reviews-test-v2.yaml" --ignore-not-found=true
 
+kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/virtual-service-reviews-test-v2.yaml"
+kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/virtual-service-ratings-test-delay.yaml"
+kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/virtual-service-reviews-timeout-3s.yaml"
+
 echo "Building load generator image"
 docker build -t bookinfo-loadgen:latest -f "${SCRIPT_DIR}/Dockerfile.loadgen" "${SCRIPT_DIR}"
 echo "Loading load generator image into kind cluster"
@@ -73,3 +74,5 @@ kind load docker-image bookinfo-loadgen:latest --name "${CLUSTER_NAME}"
 echo "Deploying load generator to cluster"
 kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/load-generator-deploy.yaml"
 echo
+
+kubectl -n "${NAMESPACE}" scale deployment load-generator --replicas=0
