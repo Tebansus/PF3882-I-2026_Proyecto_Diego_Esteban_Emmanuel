@@ -5,6 +5,13 @@ metadata:
   namespace: bookinfo
 spec:
   host: ratings
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 1
+      http:
+        http1MaxPendingRequests: 1
+        maxRequestsPerConnection: 1
   subsets:
   - name: v1
     labels:
