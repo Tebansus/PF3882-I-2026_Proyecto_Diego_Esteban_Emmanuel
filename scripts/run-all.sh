@@ -87,6 +87,12 @@ echo
 echo "Scaling down the load generator to idle"
 kubectl -n "${NAMESPACE}" scale deployment load-generator --replicas=0
 echo
+echo "Running 17-test-mtls.sh: verify strict mTLS enforcement"
+bash "${SCRIPT_DIR}/17-test-mtls.sh"
+echo
+echo "Running 18-test-external-mtls.sh: verify external to internal traffic with mTLS"
+bash "${SCRIPT_DIR}/18-test-external-mtls.sh"
+echo
 echo "Done. Bookinfo is live at: http://localhost:31080/productpage"
 echo "Grafana: http://localhost:3000"
 echo "Kiali:   http://localhost:20001/kiali"
