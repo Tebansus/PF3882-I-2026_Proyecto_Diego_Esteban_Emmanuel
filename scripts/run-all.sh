@@ -79,14 +79,6 @@ echo
 echo "Running 15-test-retry-mechanism.py: verify that the retry policy improves the success rate against 5xx faults"
 "${PYTHON_EXEC}" "${SCRIPT_DIR}/15-test-retry-mechanism.py"
 echo
-echo "Building and deploying the in-cluster load generator"
-docker build -t bookinfo-loadgen:latest -f "${SCRIPT_DIR}/Dockerfile.loadgen" "${SCRIPT_DIR}"
-kind load docker-image bookinfo-loadgen:latest --name "${CLUSTER_NAME}"
-kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/load-generator-deploy.yaml"
-echo
-echo "Scaling down the load generator to idle"
-kubectl -n "${NAMESPACE}" scale deployment load-generator --replicas=0
-echo
 echo "Running 17-test-mtls.sh: verify strict mTLS enforcement"
 bash "${SCRIPT_DIR}/17-test-mtls.sh"
 echo
