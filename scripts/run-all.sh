@@ -79,6 +79,14 @@ echo
 echo "Running 15-test-retry-mechanism.py: verify that the retry policy improves the success rate against 5xx faults"
 "${PYTHON_EXEC}" "${SCRIPT_DIR}/15-test-retry-mechanism.py"
 echo
+echo "Applying circuit breaker configuration for ratings: max 1 connection, max 1 pending request"
+kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/destination-rule-ratings-circuit-breaker.yaml"
+echo
+echo "Running 16-test-circuit-breaker.sh: verify that the circuit breaker trips under high concurrency load"
+bash "${SCRIPT_DIR}/16-test-circuit-breaker.sh"
+echo "Restoring default ratings destination rule"
+kubectl -n "${NAMESPACE}" apply -f "${SCRIPT_DIR}/../networking/destination-rule-all.yaml"
+echo
 echo "Running 17-test-mtls.sh: verify strict mTLS enforcement"
 bash "${SCRIPT_DIR}/17-test-mtls.sh"
 echo
