@@ -5,8 +5,7 @@ NAMESPACE="${NAMESPACE:-bookinfo}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "Deploying fortio load-testing pod (if not already present)..."
-kubectl apply -n "${NAMESPACE}" -f "${SCRIPT_DIR}/../istio-1.23.2/samples/httpbin/sample-client/fortio-deploy.yaml" || \
-kubectl apply -n "${NAMESPACE}" -f "https://raw.githubusercontent.com/istio/istio/release-1.23/samples/httpbin/sample-client/fortio-deploy.yaml"
+kubectl apply -n "${NAMESPACE}" -f "${SCRIPT_DIR}/samples/fortio-deploy.yaml"
 
 echo "Waiting for fortio pod to be ready..."
 kubectl wait pods -l app=fortio -n bookinfo --for=condition=Ready --timeout=90s

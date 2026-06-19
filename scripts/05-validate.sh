@@ -25,7 +25,7 @@ HTTP_CODE=$(curl -s -o /tmp/bookinfo-productpage.html -w "%{http_code}" "${URL}"
 if [[ "${HTTP_CODE}" != "200" ]]; then
   echo "FAIL: expected HTTP 200, got '${HTTP_CODE}'" >&2
   echo "  - Is the cluster up?            scripts/01-create-cluster.sh"
-  echo "  - Is the app deployed?          scripts/02-deploy-bookinfo.sh"
+  echo "  - Is the app deployed?          scripts/03-deploy-bookinfo.sh"
   echo "  - Are pods Ready?               kubectl -n bookinfo get pods"
   exit 1
 fi
