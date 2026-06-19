@@ -34,6 +34,15 @@ Kiali).
   self-contained mock mode (no cluster required) or against a live cluster; proves
   that the configured retry policy raises the success rate from ~60 % to ~94 % at
   a 40 % fault rate.
+- Circuit breaker on `ratings` (max 1 connection, max 1 pending request, outlier
+  detection ejecting on a single 5xx), with a `fortio`-based load test that proves
+  it trips under high concurrency.
+- Strict mTLS (`PeerAuthentication`) across the `bookinfo` namespace, with tests that
+  verify sidecar-to-sidecar traffic still works while plaintext traffic from a
+  non-mesh namespace is rejected, and that external ingress traffic is unaffected.
+- Default-deny `AuthorizationPolicy` baseline plus explicit allow rules
+  (`productpage` → `reviews`, `reviews` → `ratings`), with a test that impersonates
+  each service identity and verifies allowed and blocked paths.
 - Prometheus + Grafana for metrics, with a Bookinfo dashboard.
 - Jaeger + Kiali for distributed tracing and service topology (100 % sampling in
   `bookinfo`).
@@ -81,6 +90,10 @@ All must be on `PATH`. Run `docker info` once to confirm the daemon is reachable
 │   ├── 13-test-latency-fault.sh              # Validates the 7s ratings delay and timeout cascade
 │   ├── 14-test-percentage-fault.sh           # Validates 50% percentage-based latency injection
 │   ├── 15-test-retry-mechanism.py            # Retry load test (mock + cluster modes)
+│   ├── 16-test-circuit-breaker.sh            # Fortio load test that trips the ratings circuit breaker
+│   ├── 17-test-mtls.sh                       # Verifies STRICT mTLS allows/denies traffic by namespace
+│   ├── 18-test-external-mtls.sh              # Verifies external ingress traffic still works under STRICT mTLS
+│   ├── 19-test-authz-policies.sh             # Verifies AuthorizationPolicy allow/deny rules between services
 │   ├── load-generator.py                     # Configurable traffic simulator script
 │   ├── load-generator-deploy.yaml            # Kubernetes Deployment for the load generator
 │   ├── Dockerfile.loadgen                    # Container image for the load generator
@@ -92,6 +105,7 @@ All must be on `PATH`. Run `docker info` once to confirm the daemon is reachable
 │   ├── destination-rule-reviews.yaml         # DestinationRules for reviews only
 │   ├── destination-rules.yaml                # Minimal destination rules
 │   ├── destination-rule-all-mtls.yaml        # DestinationRules with mTLS mode
+│   ├── destination-rule-ratings-circuit-breaker.yaml # Circuit breaker (max 1 conn/pending) for ratings
 │   ├── virtual-service-all-v1.yaml           # Routes all services to v1
 │   ├── virtual-service-canary.yaml           # Canary: 90% v1, 5% v2, 5% v3 for reviews
 │   ├── virtual-service-header.yaml           # Header-based routing example
@@ -146,7 +160,11 @@ All must be on `PATH`. Run `docker info` once to confirm the daemon is reachable
 │   └── productpage-nodeport.yaml             # NodePort exposure for productpage
 │
 ├── policy/
-│   └── productpage_envoy_ratelimit.yaml      # Envoy rate limiting for productpage
+│   ├── productpage_envoy_ratelimit.yaml      # Envoy rate limiting for productpage
+│   ├── peer-authentication-strict.yaml       # Namespace-wide STRICT mTLS PeerAuthentication
+│   ├── authorization-policy-deny-all.yaml    # Default deny-all AuthorizationPolicy baseline
+│   ├── authorization-policy-allow-productpage-to-reviews.yaml # Allows productpage -> reviews
+│   └── authorization-policy-allow-reviews-to-ratings.yaml     # Allows reviews -> ratings
 │
 ├── gateway-api/
 │   ├── bookinfo-gateway.yaml                 # Kubernetes Gateway API Gateway resource
@@ -193,8 +211,9 @@ bash scripts/run-all.sh
 This performs the complete setup in order: cluster creation, Istio install, Bookinfo
 deployment, smoke test, metrics and tracing installation, canary validation, header
 routing validation, latency fault injection and testing, percentage fault injection
-and testing, retry mechanism configuration and validation, and load generator
-deployment.
+and testing, retry mechanism configuration and validation, circuit breaker
+configuration and load testing, strict mTLS validation (internal and external
+traffic), AuthorizationPolicy validation, and load generator deployment.
 
 Open the app:
 
@@ -432,7 +451,63 @@ Against a live cluster with a fault-injection VirtualService already applied, pa
 `--url http://localhost:31080/api/v1/products/0/reviews` to run the same two phases
 against the real endpoint.
 
-### 11. Load generator
+### 11. Circuit breaker on `ratings`
+
+```bash
+kubectl apply -f networking/destination-rule-ratings-circuit-breaker.yaml -n bookinfo
+bash scripts/16-test-circuit-breaker.sh
+```
+
+Applies a `DestinationRule` that limits `ratings` to 1 TCP connection and 1 pending
+HTTP request, with outlier detection ejecting a host after a single 5xx error. The
+test deploys a `fortio` load-testing pod and fires 100 requests over 20 concurrent
+connections at `ratings`, then checks Envoy's `upstream_rq_pending_overflow` stat to
+confirm the circuit breaker rejected the excess requests.
+
+Restore the default (non-breaking) `DestinationRule` afterwards:
+
+```bash
+kubectl apply -f networking/destination-rule-all.yaml -n bookinfo
+```
+
+### 12. Strict mTLS
+
+```bash
+kubectl apply -f policy/peer-authentication-strict.yaml -n bookinfo
+bash scripts/17-test-mtls.sh
+```
+
+Applies a namespace-wide `PeerAuthentication` with `mtls.mode: STRICT`, requiring
+all sidecar-to-sidecar traffic in `bookinfo` to use mutual TLS. The test deploys a
+`sleep` pod with no sidecar in the `default` namespace and one with a sidecar in
+`bookinfo`, then confirms a plaintext request to `productpage` from `default` is
+rejected while the same request from inside the mesh succeeds.
+
+### 13. External traffic under strict mTLS
+
+```bash
+bash scripts/18-test-external-mtls.sh
+```
+
+Re-applies the STRICT `PeerAuthentication` and re-runs the `05-validate.sh` smoke
+test to confirm that external traffic through the Istio ingress gateway is
+unaffected — the gateway terminates plaintext from outside the mesh and upgrades to
+mTLS internally.
+
+### 14. AuthorizationPolicy allow/deny rules
+
+```bash
+bash scripts/19-test-authz-policies.sh
+```
+
+Applies a default-deny-all `AuthorizationPolicy` baseline plus explicit allow rules
+for `productpage` → `reviews` and `reviews` → `ratings` (matched on the caller's
+mTLS-derived service-account principal). The script deploys throwaway client pods
+impersonating each service identity and verifies that `productpage → reviews` and
+`reviews → ratings` succeed while `ratings → reviews`, `productpage → ratings`, and
+`details → reviews` are all denied.
+
+### 15. Load generator
 
 The load generator is deployed as an in-cluster Kubernetes `Deployment` and is built
 from `scripts/Dockerfile.loadgen`. It is built and loaded into kind automatically
