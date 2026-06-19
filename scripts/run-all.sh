@@ -93,6 +93,9 @@ echo
 echo "Running 18-test-external-mtls.sh: verify external to internal traffic with mTLS"
 bash "${SCRIPT_DIR}/18-test-external-mtls.sh"
 echo
+echo "Running 19-test-authz-policies.sh: verify AuthorizationPolicy allow/deny rules between services"
+bash "${SCRIPT_DIR}/19-test-authz-policies.sh"
+echo
 echo "Done. Bookinfo is live at: http://localhost:31080/productpage"
 echo "Grafana: http://localhost:3000"
 echo "Kiali:   http://localhost:20001/kiali"
