@@ -8,7 +8,9 @@ POLICY_DIR="${SCRIPT_DIR}/../policy"
 echo "Applying AuthorizationPolicies to '${NAMESPACE}'..."
 kubectl apply -n "${NAMESPACE}" -f "${POLICY_DIR}/authorization-policy-deny-all.yaml"
 kubectl apply -n "${NAMESPACE}" -f "${POLICY_DIR}/authorization-policy-allow-productpage-to-reviews.yaml"
+kubectl apply -n "${NAMESPACE}" -f "${POLICY_DIR}/authorization-policy-allow-productpage-to-details.yaml"
 kubectl apply -n "${NAMESPACE}" -f "${POLICY_DIR}/authorization-policy-allow-reviews-to-ratings.yaml"
+kubectl apply -n "${NAMESPACE}" -f "${POLICY_DIR}/authorization-policy-allow-ingress-to-productpage.yaml"
 
 # Test clients impersonate each service's identity (via serviceAccountName) so that
 # Istio's mTLS-derived principal matches what the AuthorizationPolicies check, without
@@ -77,6 +79,7 @@ run_test() {
 echo ""
 echo "=== Testing ALLOWED communication ==="
 run_test authz-test-productpage "http://reviews.${NAMESPACE}.svc.cluster.local:9080/reviews/0" allow "productpage -> reviews"
+run_test authz-test-productpage "http://details.${NAMESPACE}.svc.cluster.local:9080/details/0" allow "productpage -> details"
 run_test authz-test-reviews "http://ratings.${NAMESPACE}.svc.cluster.local:9080/ratings/0" allow "reviews -> ratings"
 
 echo ""
@@ -84,6 +87,10 @@ echo "=== Testing BLOCKED communication ==="
 run_test authz-test-ratings "http://reviews.${NAMESPACE}.svc.cluster.local:9080/reviews/0" deny "ratings -> reviews"
 run_test authz-test-productpage "http://ratings.${NAMESPACE}.svc.cluster.local:9080/ratings/0" deny "productpage -> ratings"
 run_test authz-test-details "http://reviews.${NAMESPACE}.svc.cluster.local:9080/reviews/0" deny "details -> reviews"
+
+echo ""
+echo "=== Testing ingress -> productpage remains reachable ==="
+bash "${SCRIPT_DIR}/05-validate.sh"
 
 echo ""
 echo "All AuthorizationPolicy tests passed!"

@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: load-generator
-  namespace: bookinfo
   labels:
     app: load-generator
 spec:
@@ -19,7 +18,7 @@ spec:
     spec:
       containers:
       - name: load-generator
-        image: bookinfo-loadgen:latest # You should build and load this image into your cluster, e.g. using 'kind load docker-image'
+        image: bookinfo-loadgen:latest # built from Dockerfile.loadgen and loaded into kind by run-all.sh
         imagePullPolicy: IfNotPresent
         args:
           - "--url"

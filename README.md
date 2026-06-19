@@ -41,8 +41,11 @@ Kiali).
   verify sidecar-to-sidecar traffic still works while plaintext traffic from a
   non-mesh namespace is rejected, and that external ingress traffic is unaffected.
 - Default-deny `AuthorizationPolicy` baseline plus explicit allow rules
-  (`productpage` → `reviews`, `reviews` → `ratings`), with a test that impersonates
-  each service identity and verifies allowed and blocked paths.
+  (ingress gateway → `productpage`, `productpage` → `reviews`, `productpage` →
+  `details`, `reviews` → `ratings`), with a test that impersonates each service
+  identity, verifies allowed and blocked paths, and confirms the app is still fully
+  reachable (including the `details` panel) through the ingress gateway under the
+  deny-all baseline.
 - Prometheus + Grafana for metrics, with a Bookinfo dashboard.
 - Jaeger + Kiali for distributed tracing and service topology (100 % sampling in
   `bookinfo`).
@@ -97,7 +100,10 @@ All must be on `PATH`. Run `docker info` once to confirm the daemon is reachable
 │   ├── load-generator.py                     # Configurable traffic simulator script
 │   ├── load-generator-deploy.yaml            # Kubernetes Deployment for the load generator
 │   ├── Dockerfile.loadgen                    # Container image for the load generator
-│   └── productpage-nodeport-31080.yaml       # Optional NodePort fallback (no ingress needed)
+│   ├── productpage-nodeport-31080.yaml       # Optional NodePort fallback (no ingress needed)
+│   └── samples/                              # Vendored upstream Istio sample manifests (no network fetch needed)
+│       ├── fortio-deploy.yaml                # Fortio load-testing pod, used by 16-test-circuit-breaker.sh
+│       └── sleep.yaml                        # Sidecar-less/sidecar test client, used by 17-test-mtls.sh
 │
 ├── networking/
 │   ├── bookinfo-gateway.yaml                 # Istio Gateway (port 31080, HTTP)
@@ -164,7 +170,9 @@ All must be on `PATH`. Run `docker info` once to confirm the daemon is reachable
 │   ├── peer-authentication-strict.yaml       # Namespace-wide STRICT mTLS PeerAuthentication
 │   ├── authorization-policy-deny-all.yaml    # Default deny-all AuthorizationPolicy baseline
 │   ├── authorization-policy-allow-productpage-to-reviews.yaml # Allows productpage -> reviews
-│   └── authorization-policy-allow-reviews-to-ratings.yaml     # Allows reviews -> ratings
+│   ├── authorization-policy-allow-productpage-to-details.yaml # Allows productpage -> details
+│   ├── authorization-policy-allow-reviews-to-ratings.yaml     # Allows reviews -> ratings
+│   └── authorization-policy-allow-ingress-to-productpage.yaml # Allows ingress gateway -> productpage
 │
 ├── gateway-api/
 │   ├── bookinfo-gateway.yaml                 # Kubernetes Gateway API Gateway resource
@@ -501,17 +509,32 @@ bash scripts/19-test-authz-policies.sh
 ```
 
 Applies a default-deny-all `AuthorizationPolicy` baseline plus explicit allow rules
-for `productpage` → `reviews` and `reviews` → `ratings` (matched on the caller's
-mTLS-derived service-account principal). The script deploys throwaway client pods
-impersonating each service identity and verifies that `productpage → reviews` and
-`reviews → ratings` succeed while `ratings → reviews`, `productpage → ratings`, and
-`details → reviews` are all denied.
+for ingress gateway → `productpage`, `productpage` → `reviews`, `productpage` →
+`details`, and `reviews` → `ratings` (matched on the caller's mTLS-derived
+service-account principal). Without the ingress-gateway and `details` allow rules,
+the deny-all baseline would also block external traffic to `productpage` and
+`productpage`'s own call to `details`, since the deny-all policy has no selector
+and therefore applies to every workload in the namespace. The script deploys
+throwaway client pods impersonating each service identity and verifies that
+`productpage → reviews`, `productpage → details`, and `reviews → ratings` succeed
+while `ratings → reviews`, `productpage → ratings`, and `details → reviews` are all
+denied, then re-runs the `05-validate.sh` smoke test to confirm the app — including
+the `details` panel — is still fully reachable at `http://localhost:31080/productpage`
+under the deny-all baseline.
 
 ### 15. Load generator
 
 The load generator is deployed as an in-cluster Kubernetes `Deployment` and is built
-from `scripts/Dockerfile.loadgen`. It is built and loaded into kind automatically
-by `run-all.sh`. To manage it manually:
+from `scripts/Dockerfile.loadgen`. `scripts/run-all.sh` deploys it automatically
+(right after the tracing stack is installed) by running:
+
+```bash
+docker build -t bookinfo-loadgen:latest -f scripts/Dockerfile.loadgen scripts
+kind load docker-image bookinfo-loadgen:latest --name bookinfo
+kubectl apply -n bookinfo -f scripts/load-generator-deploy.yaml
+```
+
+It is running (1 replica) as soon as that's applied. To manage it manually:
 
 ```bash
 # Start
@@ -583,13 +606,18 @@ All scripts honor a few env vars if you want to deviate from the defaults:
 | `CLUSTER_NAME` | `bookinfo` | 01, 02, 03, 99 |
 | `NAMESPACE` | `bookinfo` | 02, 03 |
 | `LOCAL_PORT` | `9080` | 04 |
-| `URL` | `http://localhost:31080/productpage` | 08, 14 |
-| `THREADS` | `5` | 08, 14 |
-| `DELAY_MIN` | `0.1` | 08 |
-| `DELAY_MAX` | `1.0` | 08 |
+| `URL` | `http://localhost:31080/productpage` | 14 |
+| `THREADS` | `4` | 14 |
+| `DELAY_MIN` | `0.1` | 14 |
+| `DELAY_MAX` | `0.5` | 14 |
 | `DURATION` | `60` | 14 |
 | `LATENCY_THRESHOLD` | `2.5` | 14 |
 | `TOLERANCE` | `0.15` | 14 |
+
+These vars only affect `scripts/14-test-percentage-fault.sh`'s own ad hoc call to
+`load-generator.py`. The in-cluster load generator started by `run-all.sh` is
+configured separately, via the hardcoded `args` in `scripts/load-generator-deploy.yaml`
+(`--url`, `--threads 4`, `--delay-min 0.1`, `--delay-max 0.5`, `--header-rate 0.2`).
 
 Example: `CLUSTER_NAME=demo bash scripts/01-create-cluster.sh`.
 

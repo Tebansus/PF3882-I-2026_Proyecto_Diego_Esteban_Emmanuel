@@ -6,12 +6,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KUBE_DIR="${SCRIPT_DIR}/../platform/kube"
 
 echo "Deploying sleep pod in 'default' namespace (no Istio sidecar)..."
-kubectl apply -n default -f "${SCRIPT_DIR}/../istio-1.23.2/samples/sleep/sleep.yaml" || \
-kubectl apply -n default -f "https://raw.githubusercontent.com/istio/istio/master/samples/sleep/sleep.yaml"
+kubectl apply -n default -f "${SCRIPT_DIR}/samples/sleep.yaml"
 
 echo "Deploying sleep pod in '${NAMESPACE}' namespace (with Istio sidecar)..."
-kubectl apply -n "${NAMESPACE}" -f "${SCRIPT_DIR}/../istio-1.23.2/samples/sleep/sleep.yaml" || \
-kubectl apply -n "${NAMESPACE}" -f "https://raw.githubusercontent.com/istio/istio/master/samples/sleep/sleep.yaml"
+kubectl apply -n "${NAMESPACE}" -f "${SCRIPT_DIR}/samples/sleep.yaml"
 
 echo "Waiting for sleep pods to be ready..."
 kubectl wait --for=condition=ready pod -l app=sleep -n default --timeout=60s

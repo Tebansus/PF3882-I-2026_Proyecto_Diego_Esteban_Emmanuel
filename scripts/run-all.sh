@@ -29,6 +29,13 @@ echo
 echo "Running 07-install-tracing.sh: install Jaeger, Kiali, and tracing"
 bash "${SCRIPT_DIR}/07-install-tracing.sh"
 echo
+echo "Building load generator image and loading it into the kind cluster"
+docker build -t bookinfo-loadgen:latest -f "${SCRIPT_DIR}/Dockerfile.loadgen" "${SCRIPT_DIR}"
+kind load docker-image bookinfo-loadgen:latest --name "${CLUSTER_NAME}"
+echo
+echo "Deploying in-cluster load generator"
+kubectl apply -n "${NAMESPACE}" -f "${SCRIPT_DIR}/load-generator-deploy.yaml"
+echo
 echo "Switching to canary reviews routing"
 kubectl -n "${NAMESPACE}" delete virtualservice reviews-combined --ignore-not-found=true
 kubectl -n "${NAMESPACE}" delete -f "${SCRIPT_DIR}/../networking/virtual-service-ratings-test-delay.yaml" --ignore-not-found=true
