@@ -193,10 +193,26 @@ All must be on `PATH`. Run `docker info` once to confirm the daemon is reachable
 ├── docs/
 │   ├── ProjectProposal.md                    # Project objectives and scope
 │   ├── TrafficEngineering.md                 # Traffic split and header routing walkthrough
-│   └── BookinfoSampleBuildAndPush.md         # Custom Docker image build and push guide
+│   ├── FaultInjection.md                     # Latency/abort injection and circuit breaker walkthrough
+│   ├── SecurityPolicies.md                   # mTLS and AuthorizationPolicy walkthrough
+│   ├── Observability.md                      # Kiali, Grafana, and Jaeger walkthrough
+│   ├── FinalReport.md                        # Final report against the Project Proposal
+│   ├── BookinfoSampleBuildAndPush.md         # Custom Docker image build and push guide
+│   └── screenshots/                          # Kiali/Grafana/Jaeger captures, by topic
 │
 └── logs/                                     # Runtime output and CSV captures from test scripts
 ```
+
+## Documentation
+
+| Doc | Covers |
+|---|---|
+| [docs/ProjectProposal.md](docs/ProjectProposal.md) | Original project scope and week-by-week plan |
+| [docs/TrafficEngineering.md](docs/TrafficEngineering.md) | Canary releases and header-based routing |
+| [docs/FaultInjection.md](docs/FaultInjection.md) | Latency/abort injection, timeouts/retries, circuit breaker |
+| [docs/SecurityPolicies.md](docs/SecurityPolicies.md) | Strict mTLS, AuthorizationPolicy, rate limiting |
+| [docs/Observability.md](docs/Observability.md) | Kiali, Grafana, and Jaeger setup and captures |
+| [docs/FinalReport.md](docs/FinalReport.md) | Final report against the Project Proposal |
 
 ## How `kind-config.yaml` is set up
 

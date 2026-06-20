@@ -47,9 +47,18 @@ The `reviews-combined` VirtualService implements a dual-routing strategy:
 ### Kiali Dashboard
 The Kiali dashboard gives a graphical node layout representing the service mesh traffic. Under load, it visualizes the split according to the defined weights and header-based paths.
 
-![Kiali Traffic Split](kiali_traffic_split.png)
+![Kiali Traffic Split](screenshots/routing/kiali_traffic_split.png)
 
 ### Grafana Dashboard
 The Grafana dashboard visualizes request volume, success rate, and P99 latency. With the load generator running, you can observe spikes and stable metrics over time.
 
-![Grafana Metrics under Load](grafana_metrics_load.png)
+![Grafana Metrics under Load](screenshots/routing/grafana_metrics_load.png)
+
+### Canary Topology and Live Metrics
+
+A live capture of the canary scenario (90 % `v1` / 5 % `v2` / 5 % `v3`) with the in-cluster
+load generator running:
+
+![Kiali Canary Topology](screenshots/routing/kiali_canary_topology.png)
+
+![Grafana Canary Traffic](screenshots/routing/grafana_bookinfo_canary.png)
