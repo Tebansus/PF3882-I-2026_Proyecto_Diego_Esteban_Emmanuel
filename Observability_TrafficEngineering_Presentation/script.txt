@@ -1,0 +1,233 @@
+================================================================
+SPEAKER SCRIPT — Observability and Traffic Engineering (Istio/Bookinfo)
+Target total time: 10 minutes (slides ~5 min, live demo ~5 min)
+================================================================
+
+PRE-FLIGHT (do this BEFORE you start talking, it does not count against
+the 10 minutes):
+  - Have the kind cluster, Istio, Bookinfo, Prometheus/Grafana, Jaeger/Kiali,
+    and the in-cluster load generator already running, i.e. lines 1-37 of
+    scripts/run-all.sh already executed successfully in a terminal you can
+    scroll back to.
+  - Have three more terminals (or tabs) ready with the port-forward commands
+    typed but NOT yet run:
+      kubectl -n istio-system port-forward svc/grafana 3000:3000
+      kubectl -n kiali port-forward svc/kiali 20001:20001
+      kubectl -n jaeger port-forward svc/tracing 16686:80
+  - Have browser tabs ready (can be blank/about:blank) for:
+      http://localhost:20001/kiali
+      http://localhost:3000
+      http://localhost:16686/jaeger
+  - Make sure the load generator is actually sending traffic
+    (scripts/08-start-load-generator.sh) so the graphs are not empty.
+
+----------------------------------------------------------------
+SLIDE 1 — Title (0:00 - 0:15)
+----------------------------------------------------------------
+"Hi, we're going to walk through the observability stack and the traffic
+engineering we built on top of Istio and the Bookinfo sample app — Kiali,
+Grafana, and Jaeger, then canary releases and header-based routing for the
+reviews service. We'll close with a short live demo."
+
+----------------------------------------------------------------
+SLIDE 2 — Agenda (0:15 - 0:30)
+----------------------------------------------------------------
+"Three parts: first the observability tools we installed and what each one
+is for; second, the two routing strategies we layered on the reviews
+service; and finally a live demo where we apply both routing strategies and
+watch the effect show up in real time in Kiali, Grafana, and Jaeger."
+
+----------------------------------------------------------------
+SLIDE 3 — Mesh Architecture Under Observation (0:30 - 1:00)
+----------------------------------------------------------------
+"Quick refresher on the topology: traffic enters through the Istio ingress
+gateway, hits productpage, which fans out to details and to reviews, and
+reviews — depending on routing — calls ratings. Every one of those arrows
+is actually a sidecar-to-sidecar Envoy call, which is exactly why we get
+metrics, traces, and a topology graph for free without touching the
+application code: Prometheus scrapes the sidecars, Jaeger collects the
+spans they emit, and Kiali turns both into the graph you're about to see."
+
+----------------------------------------------------------------
+SLIDE 4 — Kiali: Service Topology (1:00 - 1:40)
+----------------------------------------------------------------
+"Kiali gives us a live traffic graph, refreshed every 15 seconds straight
+from Prometheus. Each edge shows request rate and success percentage, and
+when we apply weighted or header-based routing rules, you literally see
+the split happen on the graph — you can watch the canary edges to v1, v2,
+v3 and the dedicated edge for the jason header light up. Kiali also has an
+Istio Config view that lists every CRD we've applied — VirtualServices,
+DestinationRules, the Gateway, PeerAuthentication, Telemetry — with a
+validation status, which is how we sanity-checked every config in this
+project before testing it."
+
+----------------------------------------------------------------
+SLIDE 5 — Grafana: Metrics Dashboards (1:40 - 2:15)
+----------------------------------------------------------------
+"Grafana is fed by the same Prometheus instance. We installed a custom
+Bookinfo dashboard with three panels: overall request rate per service,
+the 5xx error rate, and — this is the one we'll use most today —
+per-version request rate for reviews, so we can literally watch the 90/5/5
+split happen in numbers. We also get the standard Istio addon dashboards
+for the mesh, per-service, and control-plane metrics if we need to go
+deeper."
+
+----------------------------------------------------------------
+SLIDE 6 — Jaeger: Distributed Tracing (2:15 - 2:50)
+----------------------------------------------------------------
+"Jaeger gives us distributed tracing. We bumped trace sampling to 100% for
+the bookinfo namespace via a Telemetry resource — Istio's default is only
+1%, which is too sparse for a demo or for debugging. Because productpage
+and reviews both propagate the W3C/B3 tracing headers onto their own
+outbound calls, every request produces one connected trace across every
+hop, and the search view here lists exactly that: every request entering
+at productpage, fanning out to details and reviews."
+
+----------------------------------------------------------------
+SLIDE 7 — Jaeger: Trace Waterfall (2:50 - 3:20)
+----------------------------------------------------------------
+"Drilling into one trace gives this waterfall: load generator into
+productpage, fanning out to details and to reviews, and reviews calling
+ratings — five services, twelve spans, each with its own timing. This is
+the view that actually pinpoints which hop is slow or failing; in our
+fault-injection work, for example, this is exactly where we could see the
+delayed reviews-to-ratings span and the error icon bubble up to the
+parent."
+
+----------------------------------------------------------------
+SLIDE 8 — Traffic Engineering: Overview (3:20 - 3:40)
+----------------------------------------------------------------
+"Switching gears to traffic engineering. The goal is to control how
+requests to reviews get distributed across v1, v2, v3 without touching a
+single line of application code. We use two mechanisms, both expressed as
+Istio VirtualServices: a weighted canary split, and header-based routing
+for a specific user. And then we combine both into one VirtualService with
+priority-ordered match rules."
+
+----------------------------------------------------------------
+SLIDE 9 — Canary Release: 90/5/5 Split (3:40 - 4:05)
+----------------------------------------------------------------
+"This is the canary VirtualService: 90% of traffic to v1, 5% to v2, 5% to
+v3 — a classic canary shape where the new versions only get a small
+fraction of real traffic. We validate this automatically with
+10-verify-canary.sh, which samples 100 requests and checks the combined
+v2+v3 ratio lands within 10% plus or minus 5%."
+
+----------------------------------------------------------------
+SLIDE 10 — Header-Based Routing (4:05 - 4:30)
+----------------------------------------------------------------
+"Layered on top of that is header-based routing. The combined
+VirtualService has two ordered rules: first, if the request carries the
+header end-user: jason, it goes 100% to reviews v2, deterministically.
+Everything else falls through to the same 90/5/5 canary rule we just saw.
+Order matters here — Istio evaluates HTTP match rules top to bottom and
+takes the first match."
+
+----------------------------------------------------------------
+SLIDE 11 — Routing Decision Path (4:30 - 4:50)
+----------------------------------------------------------------
+"Visually: every request to reviews asks one question — is this user
+jason? If yes, it always lands on v2. If no, it falls into the canary
+split. 11-test-header-routing.sh automates exactly this check: an
+anonymous request should get any valid version, a jason request should
+always get v2."
+
+----------------------------------------------------------------
+SLIDE 12 — Observed Effect: Kiali Traffic Split (4:50 - 5:05)
+----------------------------------------------------------------
+"And here's what that looks like in Kiali once traffic is flowing: the
+weighted edges to v1/v2/v3 plus the dedicated header-matched edge to v2,
+all on the same graph. Let's go see this live."
+
+----------------------------------------------------------------
+SLIDE 13 — Live Demonstration (divider, 5:05 - 5:15)
+----------------------------------------------------------------
+"No more slides from here — we're going to the terminal and the browser.
+Four things: confirm the mesh and observability stack are already up,
+apply and verify the canary split, apply and verify header-based routing,
+and watch both show up live in Kiali, Grafana, and Jaeger."
+
+================================================================
+LIVE DEMO (5:15 - 10:00, ~4:45)
+================================================================
+
+DEMO STEP 0 — Recap what's already running (5:15 - 5:35, ~20s)
+----------------------------------------------------------------
+SAY: "Lines 1 through 37 of run-all.sh are already done — I ran them before
+this talk so we don't burn ten minutes on cluster bring-up. That covered:
+creating the kind cluster, installing Istio, deploying Bookinfo, the smoke
+test, Prometheus and Grafana, Jaeger and Kiali, and the in-cluster load
+generator, which is already sending traffic."
+DO: scroll back in the terminal to show the tail of that run (or run
+`kubectl -n bookinfo get pods` to show everything Running/2-2 Ready) and
+`kubectl -n bookinfo get pods -l app=loadgen` to show the load generator.
+
+DEMO STEP 1 — Apply the canary split (5:35 - 6:10, ~35s)
+----------------------------------------------------------------
+SAY: "First, the canary VirtualService — 90/5/5."
+RUN:
+  kubectl -n bookinfo apply -f networking/virtual-service-canary.yaml
+SAY: "And we verify it automatically."
+RUN:
+  bash scripts/10-verify-canary.sh
+SAY (while it runs / on result): "It samples 100 requests and confirms the
+v2+v3 ratio is within tolerance of the configured 10%. PASS means the
+split is live."
+
+DEMO STEP 2 — Show the canary effect in Grafana and Kiali (6:10 - 7:00, ~50s)
+----------------------------------------------------------------
+DO: switch to the Grafana tab (start the port-forward if not already
+running: `kubectl -n istio-system port-forward svc/grafana 3000:3000`).
+SAY: "On the Bookinfo dashboard, per-version reviews request rate — you can
+see v1 dominating with v2 and v3 trickling in at roughly 5% each."
+DO: switch to the Kiali tab (`kubectl -n kiali port-forward svc/kiali
+20001:20001`), open the traffic graph for the bookinfo namespace.
+SAY: "And on the graph, the same thing — three weighted edges out of
+reviews into the three subsets."
+
+DEMO STEP 3 — Apply header-based routing (7:00 - 7:35, ~35s)
+----------------------------------------------------------------
+SAY: "Now let's layer in header-based routing for jason. We swap the
+canary-only VirtualService for the combined one."
+RUN:
+  kubectl -n bookinfo delete virtualservice reviews-canary --ignore-not-found=true
+  kubectl -n bookinfo apply -f networking/combined-virtual-service.yaml
+SAY: "Then verify both paths."
+RUN:
+  bash scripts/11-test-header-routing.sh
+SAY: "Anonymous requests still land on any valid version; a request with
+end-user: jason always comes back as v2 — that's the PASS lines you're
+seeing."
+
+DEMO STEP 4 — Show the header-routing effect in Kiali and Jaeger (7:35 - 8:50, ~75s)
+----------------------------------------------------------------
+DO: refresh the Kiali traffic graph.
+SAY: "Kiali now shows a fourth, header-matched edge straight to v2 for
+jason traffic, on top of the same canary split for everyone else."
+DO: log in to http://localhost:31080/productpage as jason (password
+jason) to generate a couple of header-tagged requests, then switch to the
+Jaeger tab (`kubectl -n jaeger port-forward svc/tracing 16686:80`).
+SAY: "In Jaeger, searching for productpage traces, we can pick one of
+jason's requests and see the full waterfall — productpage to reviews v2 to
+ratings — confirming end to end which version actually served that
+specific user, something the topology graph alone can't show you at the
+per-request level."
+
+DEMO STEP 5 — Wrap-up (8:50 - 9:10, ~20s)
+----------------------------------------------------------------
+SAY: "So in under a minute of kubectl apply commands, we changed live
+routing behavior for a real user segment, and all three tools — Kiali,
+Grafana, Jaeger — picked it up automatically, with zero changes to the
+reviews or productpage code."
+
+CLOSING (9:10 - 9:30)
+----------------------------------------------------------------
+SAY: "That's canary releases and header-based routing on Istio, observed
+through Kiali, Grafana, and Jaeger. Happy to take questions."
+
+----------------------------------------------------------------
+BUFFER: this leaves roughly 30-50 seconds of slack across the full 10
+minutes for slower network/UI loading or audience reactions. If running
+long, skip the Jaeger jason-trace lookup in Step 4 and just show the Kiali
+edge — that alone proves the routing change.
+================================================================
