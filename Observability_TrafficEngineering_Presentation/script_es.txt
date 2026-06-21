@@ -1,0 +1,250 @@
+================================================================
+GUION DEL PRESENTADOR — Observabilidad e Ingeniería de Tráfico (Istio/Bookinfo)
+Tiempo total objetivo: 10 minutos (diapositivas ~5 min, demo en vivo ~5 min)
+================================================================
+
+PREPARACIÓN PREVIA (hacer esto ANTES de empezar a hablar, no cuenta
+dentro de los 10 minutos):
+  - Tener el cluster de kind, Istio, Bookinfo, Prometheus/Grafana,
+    Jaeger/Kiali, y el load generator dentro del cluster ya corriendo, es
+    decir, las líneas 1-37 de scripts/run-all.sh ya ejecutadas con éxito
+    en una terminal a la que puedas volver para mostrar el scroll-back.
+  - Tener tres terminales (o pestañas) más listas con los comandos de
+    port-forward escritos pero SIN ejecutar todavía:
+      kubectl -n istio-system port-forward svc/grafana 3000:3000
+      kubectl -n kiali port-forward svc/kiali 20001:20001
+      kubectl -n jaeger port-forward svc/tracing 16686:80
+  - Tener pestañas del navegador listas (pueden estar en blanco/about:blank)
+    para:
+      http://localhost:20001/kiali
+      http://localhost:3000
+      http://localhost:16686/jaeger
+  - Asegurarse de que el load generator esté efectivamente enviando
+    tráfico (scripts/08-start-load-generator.sh) para que las gráficas
+    no aparezcan vacías.
+
+----------------------------------------------------------------
+DIAPOSITIVA 1 — Título (0:00 - 0:15)
+----------------------------------------------------------------
+"Hola, vamos a recorrer el stack de observabilidad y la ingeniería de
+tráfico que construimos sobre Istio y la aplicación de ejemplo Bookinfo:
+Kiali, Grafana y Jaeger, y luego canary releases y enrutamiento basado en
+headers para el servicio reviews. Cerramos con una demo en vivo corta."
+
+----------------------------------------------------------------
+DIAPOSITIVA 2 — Agenda (0:15 - 0:30)
+----------------------------------------------------------------
+"Tres partes: primero las herramientas de observabilidad que instalamos y
+para qué sirve cada una; segundo, las dos estrategias de enrutamiento que
+aplicamos sobre el servicio reviews; y por último una demo en vivo donde
+aplicamos ambas estrategias de enrutamiento y vemos el efecto en tiempo
+real en Kiali, Grafana y Jaeger."
+
+----------------------------------------------------------------
+DIAPOSITIVA 3 — Arquitectura del Mesh Bajo Observación (0:30 - 1:00)
+----------------------------------------------------------------
+"Repaso rápido de la topología: el tráfico entra por el ingress gateway de
+Istio, llega a productpage, que se abre hacia details y hacia reviews, y
+reviews —dependiendo del enrutamiento— llama a ratings. Cada una de esas
+flechas es en realidad una llamada de sidecar a sidecar de Envoy, que es
+justamente por qué obtenemos métricas, trazas y un grafo de topología
+gratis, sin tocar el código de la aplicación: Prometheus recolecta los
+datos de los sidecars, Jaeger recolecta los spans que emiten, y Kiali
+convierte ambos en el grafo que van a ver a continuación."
+
+----------------------------------------------------------------
+DIAPOSITIVA 4 — Kiali: Topología de Servicios (1:00 - 1:40)
+----------------------------------------------------------------
+"Kiali nos da un grafo de tráfico en vivo, actualizado cada 15 segundos
+directamente desde Prometheus. Cada arista muestra la tasa de peticiones y
+el porcentaje de éxito, y cuando aplicamos reglas de enrutamiento
+ponderado o basado en headers, literalmente se ve el split reflejado en el
+grafo —se pueden ver las aristas del canary hacia v1, v2, v3 y la arista
+dedicada para el header de jason encenderse. Kiali también tiene una vista
+de Istio Config que lista cada CRD que hemos aplicado —VirtualServices,
+DestinationRules, el Gateway, PeerAuthentication, Telemetry— con su estado
+de validación, que es como verificamos cada configuración de este proyecto
+antes de probarla."
+
+----------------------------------------------------------------
+DIAPOSITIVA 5 — Grafana: Dashboards de Métricas (1:40 - 2:15)
+----------------------------------------------------------------
+"Grafana se alimenta de la misma instancia de Prometheus. Instalamos un
+dashboard personalizado de Bookinfo con tres paneles: tasa de peticiones
+general por servicio, tasa de errores 5xx, y —este es el que más vamos a
+usar hoy— tasa de peticiones por versión de reviews, para poder ver
+literalmente el split 90/5/5 reflejado en números. También tenemos los
+dashboards estándar de Istio para el mesh, por servicio, y del control
+plane si necesitamos profundizar más."
+
+----------------------------------------------------------------
+DIAPOSITIVA 6 — Jaeger: Tracing Distribuido (2:15 - 2:50)
+----------------------------------------------------------------
+"Jaeger nos da tracing distribuido. Subimos el sampling de trazas al 100%
+para el namespace bookinfo mediante un recurso Telemetry —el valor por
+defecto de Istio es solo 1%, lo cual es demasiado escaso para una demo o
+para depurar. Como productpage y reviews propagan los headers de tracing
+W3C/B3 hacia sus propias llamadas salientes, cada petición produce una
+sola traza conectada a través de cada salto, y la vista de búsqueda lista
+exactamente eso: cada petición que entra por productpage, abriéndose hacia
+details y reviews."
+
+----------------------------------------------------------------
+DIAPOSITIVA 7 — Jaeger: Vista de Cascada (2:50 - 3:20)
+----------------------------------------------------------------
+"Al entrar en una traza específica obtenemos esta vista de cascada:
+load generator hacia productpage, abriéndose hacia details y hacia
+reviews, y reviews llamando a ratings —cinco servicios, doce spans, cada
+uno con su propio tiempo. Esta es la vista que realmente permite
+identificar qué salto está lento o está fallando; en nuestro trabajo de
+inyección de fallas, por ejemplo, así es exactamente como pudimos ver el
+span retrasado de reviews hacia ratings y el ícono de error propagándose
+hacia el span padre."
+
+----------------------------------------------------------------
+DIAPOSITIVA 8 — Ingeniería de Tráfico: Visión General (3:20 - 3:40)
+----------------------------------------------------------------
+"Cambiando de tema hacia la ingeniería de tráfico. El objetivo es
+controlar cómo se distribuyen las peticiones a reviews entre v1, v2, v3
+sin tocar una sola línea del código de la aplicación. Usamos dos
+mecanismos, ambos expresados como VirtualServices de Istio: un split
+canary ponderado, y enrutamiento basado en headers para un usuario
+específico. Y luego combinamos ambos en un solo VirtualService con reglas
+de match ordenadas por prioridad."
+
+----------------------------------------------------------------
+DIAPOSITIVA 9 — Canary Release: Split 90/5/5 (3:40 - 4:05)
+----------------------------------------------------------------
+"Este es el VirtualService de canary: 90% del tráfico a v1, 5% a v2, 5% a
+v3 —la forma clásica de un canary, donde las versiones nuevas solo reciben
+una pequeña fracción del tráfico real. Lo validamos automáticamente con
+10-verify-canary.sh, que muestrea 100 peticiones y verifica que el ratio
+combinado de v2+v3 caiga dentro de 10% más o menos 5%."
+
+----------------------------------------------------------------
+DIAPOSITIVA 10 — Enrutamiento Basado en Headers (4:05 - 4:30)
+----------------------------------------------------------------
+"Encima de eso tenemos el enrutamiento basado en headers. El
+VirtualService combinado tiene dos reglas ordenadas: primero, si la
+petición lleva el header end-user: jason, va 100% hacia reviews v2, de
+forma determinista. Todo lo demás cae en la misma regla canary 90/5/5 que
+acabamos de ver. El orden importa aquí —Istio evalúa las reglas de match
+HTTP de arriba hacia abajo y toma la primera coincidencia."
+
+----------------------------------------------------------------
+DIAPOSITIVA 11 — Camino de Decisión del Enrutamiento (4:30 - 4:50)
+----------------------------------------------------------------
+"Visualmente: cada petición a reviews responde una sola pregunta —¿este
+usuario es jason? Si sí, siempre cae en v2. Si no, cae en el split canary.
+11-test-header-routing.sh automatiza exactamente esta verificación: una
+petición anónima debería recibir cualquier versión válida, una petición de
+jason siempre debería recibir v2."
+
+----------------------------------------------------------------
+DIAPOSITIVA 12 — Efecto Observado: Split de Tráfico en Kiali (4:50 - 5:05)
+----------------------------------------------------------------
+"Y así se ve esto en Kiali una vez que el tráfico está fluyendo: las
+aristas ponderadas hacia v1/v2/v3 más la arista dedicada basada en header
+hacia v2, todo en el mismo grafo. Vamos a verlo en vivo."
+
+----------------------------------------------------------------
+DIAPOSITIVA 13 — Demostración en Vivo (separador, 5:05 - 5:15)
+----------------------------------------------------------------
+"No hay más diapositivas a partir de aquí —vamos a la terminal y al
+navegador. Cuatro cosas: confirmar que el mesh y el stack de
+observabilidad ya están arriba, aplicar y verificar el split canary,
+aplicar y verificar el enrutamiento basado en headers, y ver ambos
+reflejados en vivo en Kiali, Grafana y Jaeger."
+
+================================================================
+DEMO EN VIVO (5:15 - 10:00, ~4:45)
+================================================================
+
+PASO 0 DE LA DEMO — Recapitular lo que ya está corriendo (5:15 - 5:35, ~20s)
+----------------------------------------------------------------
+DECIR: "Las líneas 1 a 37 de run-all.sh ya están hechas —las corrí antes de
+esta charla para no gastar diez minutos en levantar el cluster. Eso cubrió:
+crear el cluster de kind, instalar Istio, desplegar Bookinfo, el smoke
+test, Prometheus y Grafana, Jaeger y Kiali, y el load generator dentro del
+cluster, que ya está enviando tráfico."
+HACER: desplazarse hacia atrás en la terminal para mostrar el final de esa
+ejecución (o correr `kubectl -n bookinfo get pods` para mostrar todo en
+Running/2-2 Ready) y `kubectl -n bookinfo get pods -l app=loadgen` para
+mostrar el load generator.
+
+PASO 1 DE LA DEMO — Aplicar el split canary (5:35 - 6:10, ~35s)
+----------------------------------------------------------------
+DECIR: "Primero, el VirtualService de canary —90/5/5."
+EJECUTAR:
+  kubectl -n bookinfo apply -f networking/virtual-service-canary.yaml
+DECIR: "Y lo verificamos automáticamente."
+EJECUTAR:
+  bash scripts/10-verify-canary.sh
+DECIR (mientras corre / al ver el resultado): "Muestrea 100 peticiones y
+confirma que el ratio v2+v3 está dentro de la tolerancia del 10%
+configurado. PASS significa que el split está activo."
+
+PASO 2 DE LA DEMO — Mostrar el efecto del canary en Grafana y Kiali (6:10 - 7:00, ~50s)
+----------------------------------------------------------------
+HACER: cambiar a la pestaña de Grafana (iniciar el port-forward si aún no
+está corriendo: `kubectl -n istio-system port-forward svc/grafana
+3000:3000`).
+DECIR: "En el dashboard de Bookinfo, tasa de peticiones por versión de
+reviews —se puede ver v1 dominando, con v2 y v3 entrando poco a poco,
+cerca del 5% cada una."
+HACER: cambiar a la pestaña de Kiali (`kubectl -n kiali port-forward
+svc/kiali 20001:20001`), abrir el grafo de tráfico del namespace bookinfo.
+DECIR: "Y en el grafo, lo mismo —tres aristas ponderadas saliendo de
+reviews hacia los tres subsets."
+
+PASO 3 DE LA DEMO — Aplicar el enrutamiento basado en headers (7:00 - 7:35, ~35s)
+----------------------------------------------------------------
+DECIR: "Ahora agreguemos el enrutamiento basado en headers para jason.
+Reemplazamos el VirtualService solo-canary por el combinado."
+EJECUTAR:
+  kubectl -n bookinfo delete virtualservice reviews-canary --ignore-not-found=true
+  kubectl -n bookinfo apply -f networking/combined-virtual-service.yaml
+DECIR: "Luego verificamos ambos caminos."
+EJECUTAR:
+  bash scripts/11-test-header-routing.sh
+DECIR: "Las peticiones anónimas siguen cayendo en cualquier versión válida;
+una petición con end-user: jason siempre vuelve como v2 —esas son las
+líneas PASS que están viendo."
+
+PASO 4 DE LA DEMO — Mostrar el efecto del enrutamiento por headers en Kiali y Jaeger (7:35 - 8:50, ~75s)
+----------------------------------------------------------------
+HACER: refrescar el grafo de tráfico de Kiali.
+DECIR: "Kiali ahora muestra una cuarta arista, basada en header, directo
+hacia v2 para el tráfico de jason, además del mismo split canary para
+todos los demás."
+HACER: iniciar sesión en http://localhost:31080/productpage como jason
+(contraseña jason) para generar un par de peticiones marcadas con el
+header, luego cambiar a la pestaña de Jaeger (`kubectl -n jaeger
+port-forward svc/tracing 16686:80`).
+DECIR: "En Jaeger, buscando trazas de productpage, podemos elegir una de
+las peticiones de jason y ver la cascada completa —productpage hacia
+reviews v2 hacia ratings— confirmando de extremo a extremo qué versión
+realmente atendió a ese usuario específico, algo que el grafo de topología
+por sí solo no puede mostrar a nivel de petición individual."
+
+PASO 5 DE LA DEMO — Cierre (8:50 - 9:10, ~20s)
+----------------------------------------------------------------
+DECIR: "Entonces, en menos de un minuto de comandos kubectl apply,
+cambiamos el comportamiento de enrutamiento en vivo para un segmento real
+de usuarios, y las tres herramientas —Kiali, Grafana, Jaeger— lo
+reflejaron automáticamente, sin ningún cambio en el código de reviews o de
+productpage."
+
+CIERRE (9:10 - 9:30)
+----------------------------------------------------------------
+DECIR: "Eso fue canary releases y enrutamiento basado en headers sobre
+Istio, observado a través de Kiali, Grafana y Jaeger. Con gusto recibimos
+preguntas."
+
+----------------------------------------------------------------
+MARGEN: esto deja aproximadamente 30-50 segundos de holgura a lo largo de
+los 10 minutos totales, para una red más lenta, una UI que carga despacio,
+o reacciones del público. Si vas atrasado, salta la búsqueda de la traza
+de jason en Jaeger en el Paso 4 y muestra solo la arista en Kiali —eso por
+sí solo demuestra el cambio de enrutamiento.
+================================================================
