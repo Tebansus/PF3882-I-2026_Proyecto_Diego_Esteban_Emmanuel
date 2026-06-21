@@ -190,20 +190,22 @@ http:
 
 \begin{frame}{Routing Decision Path}
   \centering
+  \resizebox{!}{0.55\textheight}{%
   \begin{tikzpicture}[
-      node distance=1.3cm and 2.0cm,
-      box/.style={draw, rounded corners, minimum width=3.4cm, minimum height=0.9cm, align=center},
-      dec/.style={draw, diamond, aspect=2.2, minimum width=3.6cm, align=center, fill=yellow!15}
+      node distance=0.8cm and 1.2cm,
+      box/.style={draw, rounded corners, minimum width=3.2cm, minimum height=0.8cm, align=center},
+      dec/.style={draw, diamond, aspect=2.2, minimum width=3.2cm, align=center, fill=yellow!15}
     ]
     \node[box, fill=blue!8] (req) {Incoming request\\to \texttt{reviews}};
     \node[dec, below=of req] (chk) {\texttt{end-user:}\\\texttt{jason}?};
-    \node[box, fill=green!10, below left=1.4cm and 0.2cm of chk] (v2) {100\% $\to$ reviews-v2};
-    \node[box, fill=orange!10, below right=1.4cm and 0.2cm of chk] (canary) {90\% v1 / 5\% v2 / 5\% v3};
+    \node[box, fill=green!10, below left=0.9cm and 0.2cm of chk] (v2) {100\% $\to$ reviews-v2};
+    \node[box, fill=orange!10, below right=0.9cm and 0.2cm of chk] (canary) {90\% v1 / 5\% v2 / 5\% v3};
 
     \draw[-{Latex}] (req) -- (chk);
     \draw[-{Latex}] (chk) -- node[left]{yes} (v2);
     \draw[-{Latex}] (chk) -- node[right]{no} (canary);
-  \end{tikzpicture}
+  \end{tikzpicture}%
+  }
   \vspace{0.3cm}
   \texttt{scripts/11-test-header-routing.sh} confirms both paths: an anonymous
   request gets any valid version, a \texttt{jason} request always gets \texttt{v2}.
