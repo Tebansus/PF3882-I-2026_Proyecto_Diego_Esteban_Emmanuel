@@ -111,6 +111,7 @@ data:
         enabled: true
         in_cluster_url: http://tracing.jaeger:80/jaeger
         url: http://localhost:16686/jaeger
+        use_grpc: false
     identity:
       cert_file: ""
       private_key_file: ""
