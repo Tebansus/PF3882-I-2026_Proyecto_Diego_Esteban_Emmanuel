@@ -42,10 +42,11 @@
 
 \begin{frame}{Mesh Architecture Under Observation}
   \centering
+  \resizebox{!}{0.55\textheight}{%
   \begin{tikzpicture}[
-      node distance=1.6cm and 1.8cm,
-      svc/.style={draw, rounded corners, minimum width=2.4cm, minimum height=0.9cm, align=center, fill=blue!8},
-      ext/.style={draw, rounded corners, minimum width=2.4cm, minimum height=0.9cm, align=center, fill=green!10}
+      node distance=1.0cm and 1.4cm,
+      svc/.style={draw, rounded corners, minimum width=2.2cm, minimum height=0.8cm, align=center, fill=blue!8},
+      ext/.style={draw, rounded corners, minimum width=2.2cm, minimum height=0.8cm, align=center, fill=green!10}
     ]
     \node[ext] (gw) {Ingress\\Gateway};
     \node[svc, right=of gw] (pp) {productpage};
@@ -57,10 +58,11 @@
     \draw[-{Latex}] (pp) -- (det);
     \draw[-{Latex}] (pp) -- (rev);
     \draw[-{Latex}] (rev) -- (rat);
-  \end{tikzpicture}
-  \vspace{0.4cm}
+  \end{tikzpicture}%
+  }
+  \vspace{0.3cm}
   \begin{center}
-  Every hop is an Envoy sidecar call: Prometheus scrapes metrics, Jaeger\\
+  \small Every hop is an Envoy sidecar call: Prometheus scrapes metrics, Jaeger\\
   collects spans, and Kiali renders the live graph from both.
   \end{center}
 \end{frame}

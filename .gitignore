@@ -41,3 +41,18 @@ Desktop.ini
 
 # --- Cookie ---
 cookie.txt
+
+# --- LaTeX build artifacts (Observability_TrafficEngineering_Presentation) ---
+Observability_TrafficEngineering_Presentation/*.aux
+Observability_TrafficEngineering_Presentation/*.log
+Observability_TrafficEngineering_Presentation/*.nav
+Observability_TrafficEngineering_Presentation/*.out
+Observability_TrafficEngineering_Presentation/*.snm
+Observability_TrafficEngineering_Presentation/*.toc
+Observability_TrafficEngineering_Presentation/*.vrb
+Observability_TrafficEngineering_Presentation/*.fls
+Observability_TrafficEngineering_Presentation/*.fdb_latexmk
+Observability_TrafficEngineering_Presentation/*.synctex.gz
+Observability_TrafficEngineering_Presentation/*.bbl
+Observability_TrafficEngineering_Presentation/*.blg
+Observability_TrafficEngineering_Presentation/presentation.pdf
